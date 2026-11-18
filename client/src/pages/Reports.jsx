@@ -1,0 +1,14 @@
+import {useEffect,useState} from "react";
+import {ChartNoAxesCombined,Users,BriefcaseBusiness,Download} from "lucide-react";
+import {BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,PieChart,Pie,Cell} from "recharts";
+import api from "../api";
+export default function Reports(){
+ const [data,setData]=useState(null),[error,setError]=useState("");
+ useEffect(()=>{api.get("/reports/overview").then(r=>setData(r.data)).catch(e=>setError(e.response?.data?.message||"Reports unavailable for this role"));},[]);
+ const stages=data?.byStage||[],departments=data?.byDepartment||[];
+ return <div className="reports-page"><div className="page-title-row"><div><div className="eyebrow">BUSINESS INTELLIGENCE</div><h1>Reports & insights</h1><p className="muted">A clear view of hiring activity and workforce composition.</p></div></div>{error&&<div className="alert-error">{error}</div>}
+ <div className="report-kpis"><div className="stat-card"><div className="stat-icon blue"><BriefcaseBusiness/></div><div className="stat-value">{data?.openJobs??"—"}</div><div className="stat-sub">Open job requisitions</div></div><div className="stat-card"><div className="stat-icon green"><Users/></div><div className="stat-value">{data?.activeEmployees??"—"}</div><div className="stat-sub">Active employees</div></div><div className="stat-card"><div className="stat-icon purple"><ChartNoAxesCombined/></div><div className="stat-value">{stages.reduce((n,x)=>n+x.count,0)||"—"}</div><div className="stat-sub">Candidates tracked</div></div></div>
+ <div className="report-charts"><section className="panel chart-panel"><div className="panel-heading"><div><h3>Candidate stages</h3><p className="muted">Candidates by current pipeline stage</p></div></div><div className="chart-area">{stages.length?<ResponsiveContainer width="100%" height="100%"><BarChart data={stages}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="_id" tick={{fontSize:11}}/><YAxis allowDecimals={false}/><Tooltip/><Bar dataKey="count" fill="#5b6ee1" radius={[6,6,0,0]}/></BarChart></ResponsiveContainer>:<div className="empty-state">No candidate data yet.</div>}</div></section>
+ <section className="panel chart-panel"><div className="panel-heading"><div><h3>Workforce by department</h3><p className="muted">Current employee distribution</p></div></div><div className="chart-area">{departments.length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={departments} dataKey="count" nameKey="_id" cx="50%" cy="50%" outerRadius={95} label={({_id})=>_id}>{departments.map((d,i)=><Cell key={d._id} fill={["#5b6ee1","#22a68a","#f0a44b","#9b7ae8","#e47b94"][i%5]}/>)}</Pie><Tooltip/></PieChart></ResponsiveContainer>:<div className="empty-state">No employee data yet.</div>}</div></section></div>
+ </div>
+}

@@ -1,0 +1,13 @@
+import 'dotenv/config';
+import express from 'express';import cors from 'cors';import helmet from 'helmet';import morgan from 'morgan';import rateLimit from 'express-rate-limit';import path from 'node:path';import {fileURLToPath} from 'node:url';
+import {connectDB} from './config/db.js';
+import {seedDemoData} from './seed.js';
+import authRoutes from './routes/auth.js';import jobRoutes from './routes/jobs.js';import candidateRoutes from './routes/candidates.js';import interviewRoutes from './routes/interviews.js';import employeeRoutes from './routes/employees.js';import payrollRoutes from './routes/payroll.js';import dashboardRoutes from './routes/dashboard.js';import reportRoutes from './routes/reports.js';import {notFound,errorHandler} from './middleware/errors.js';
+const app=express();app.use(helmet({contentSecurityPolicy:false}));app.use(cors({origin:process.env.CLIENT_URL||true}));app.use(express.json({limit:'1mb'}));app.use(morgan('tiny'));app.use('/api/auth/login',rateLimit({windowMs:15*60*1000,max:30,standardHeaders:true,legacyHeaders:false}));
+app.get('/api/health',(req,res)=>res.json({status:'ok',service:'recruitment-platform-api',database:'sqlite'}));
+app.use('/api/auth',authRoutes);app.use('/api/dashboard',dashboardRoutes);app.use('/api/jobs',jobRoutes);app.use('/api/candidates',candidateRoutes);app.use('/api/interviews',interviewRoutes);app.use('/api/employees',employeeRoutes);app.use('/api/payroll',payrollRoutes);app.use('/api/reports',reportRoutes);
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../client/dist');app.use(express.static(root));app.get('*',(req,res,next)=>{if(req.path.startsWith('/api/'))return next();res.sendFile(path.join(root,'index.html'),err=>err&&next())});app.use(notFound);app.use(errorHandler);
+const port=process.env.PORT||5000;
+connectDB();
+await seedDemoData();
+app.listen(port,'0.0.0.0',()=>console.log(`Recruitment platform listening on ${port}`));
