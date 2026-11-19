@@ -310,7 +310,7 @@ function extractPdfText(buffer){
    for(const literal of literals)parts.push(decodePdfLiteral(literal[1]));
   }
   for(const item of content.matchAll(/<([0-9A-Fa-f]{4,})>\s*Tj/g)){
-   try{const bytes=Buffer.from(item[1].length%2?'0'+item[1]:item[1],'hex');parts.push(bytes.toString('utf16le').replace(/\u0000/g,''));}catch{}
+   try{const bytes=Buffer.from(item[1].length%2?'0'+item[1]:item[1],'hex');const text=bytes.length>=2&&bytes[0]===0xfe&&bytes[1]===0xff?Buffer.from(bytes.subarray(2)).swap16().toString('utf16le'):bytes.toString('latin1');parts.push(text);}catch{}
   }
   if(parts.join(' ').length>20000)break;
  }
