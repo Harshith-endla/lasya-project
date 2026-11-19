@@ -242,11 +242,10 @@ router.get('/notifications', (req, res, next) => {
   if (!hasPermission(req.user.role, 'notifications:read') && !hasPermission(req.user.role, 'notifications:read:self'))
     return res.status(403).json({ message: 'You do not have permission to view notifications.' });
   try {
-    const rows = isSuper(req)
-      ? db.prepare('SELECT * FROM notifications ORDER BY createdAt DESC LIMIT 100').all()
-      : req.user.role === 'EMPLOYEE'
-        ? db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id)
-        : db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id);
+    const select="SELECT n.*,CASE WHEN (n.userId=? AND n.status='Read') OR nr.id IS NOT NULL THEN 1 ELSE 0 END AS isRead FROM notifications n LEFT JOIN notification_reads nr ON nr.notificationId=n.id AND nr.userId=? ";
+    const rows=isSuper(req)
+      ? db.prepare(select+'ORDER BY n.createdAt DESC LIMIT 100').all(req.user._id,req.user._id)
+      : db.prepare(select+'WHERE n.companyId=? AND (n.userId IS NULL OR n.userId=?) ORDER BY n.createdAt DESC LIMIT 100').all(req.user._id,req.user._id,req.user.companyId,req.user._id);
     res.json(rows.map(rowWithId));
   } catch (error) { next(error); }
 });
@@ -293,12 +292,14 @@ router.patch('/notifications/:id/read',(req,res,next)=>{
    ? db.prepare('SELECT * FROM notifications WHERE id=?').get(req.params.id)
    : db.prepare('SELECT * FROM notifications WHERE id=? AND companyId=? AND (userId IS NULL OR userId=?)').get(req.params.id,req.user.companyId,req.user._id);
   if(!notification)return res.status(404).json({message:'Notification not found'});
-  if(!isSuper(req)&&notification.userId!==req.user._id)return res.status(403).json({message:'Broadcast notifications cannot be marked read individually yet'});
-  db.prepare("UPDATE notifications SET status='Read' WHERE id=? AND companyId=?").run(notification.id,notification.companyId);
+  if(notification.userId===req.user._id){
+   db.prepare("UPDATE notifications SET status='Read' WHERE id=? AND companyId=?").run(notification.id,notification.companyId);
+  }else if(notification.userId===null){
+   db.prepare('INSERT OR IGNORE INTO notification_reads(id,notificationId,userId,readAt) VALUES(?,?,?,?)').run(uid(),notification.id,req.user._id,now());
+  }else return res.status(403).json({message:'You cannot mark another user notification as read'});
   res.json({message:'Notification marked as read'});
  }catch(error){next(error);}
 });
-
 
 function decodePdfLiteral(value){
  return value.replace(/\\([0-7]{1,3})/g,(_,oct)=>String.fromCharCode(parseInt(oct,8)))
