@@ -8,7 +8,7 @@ export const navItems=[
  {label:"Administration",path:"/admin",icon:"ShieldCheck",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER"]},
  {label:"Job openings",path:"/jobs",icon:"BriefcaseBusiness",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","REPORTING_MANAGER","CEO"]},
  {label:"Candidates",path:"/candidates",icon:"Users",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER","CEO"]},
- {label:"Interviews",path:"/interviews",icon:"CalendarDays",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER"]},
+ {label:"Interviews",path:"/interviews",icon:"CalendarDays",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER","CEO"]},
  {label:"Employees",path:"/employees",icon:"ContactRound",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","REPORTING_MANAGER","EMPLOYEE","CEO"]},
  {label:"Payroll",path:"/payroll",icon:"Wallet",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","FINANCE_PAYROLL","EMPLOYEE"]},
  {label:"Talent operations",path:"/talent-operations",icon:"Workflow",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","EMPLOYEE"]},
