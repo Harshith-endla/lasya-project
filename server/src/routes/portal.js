@@ -7,7 +7,7 @@ import path from 'node:path';
 import { db, uid, now, rowWithId } from '../config/db.js';
 
 const router=Router();
-function candidateProtect(req,res,next){try{const token=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):null;if(!token)return res.status(401).json({message:'Candidate sign-in required'});const payload=jwt.verify(token,process.env.JWT_SECRET);if(!payload.candidateId)return res.status(401).json({message:'Invalid candidate session'});const candidate=db.prepare('SELECT c.id,c.name,c.email,c.phone,c.experience,c.skills,c.companyId,c.stage,c.job,c.createdAt,j.title AS jobTitle FROM candidates c LEFT JOIN jobs j ON j.id=c.job WHERE c.id=?').get(payload.candidateId);if(!candidate)return res.status(401).json({message:'Candidate account unavailable'});req.candidate=candidate;next();}catch{return res.status(401).json({message:'Candidate session expired. Please sign in again.'});}}
+function candidateProtect(req,res,next){try{const token=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):null;if(!token)return res.status(401).json({message:'Candidate sign-in required'});const payload=jwt.verify(token,process.env.JWT_SECRET);if(!payload.candidateId)return res.status(401).json({message:'Invalid candidate session'});const candidate=db.prepare('SELECT c.id,c.name,c.email,c.phone,c.experience,c.skills,c.companyId,c.stage,c.job,c.createdAt,j.title AS jobTitle FROM candidates c LEFT JOIN jobs j ON j.id=c.job WHERE c.id=?').get(payload.candidateId);if(!candidate)return res.status(401).json({message:'Candidate account unavailable'});try{candidate.skills=JSON.parse(candidate.skills||'[]')}catch{candidate.skills=[]}req.candidate=candidate;next();}catch{return res.status(401).json({message:'Candidate session expired. Please sign in again.'});}}
 const applyLimit=rateLimit({windowMs:60*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many applications from this connection. Please try again later.'}});
 const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many sign-in attempts. Try again later.'}});
 
@@ -78,8 +78,11 @@ router.get('/me',candidateProtect,(req,res)=>res.json({candidate:req.candidate})
 router.patch('/me',candidateProtect,(req,res,next)=>{
  try{
   const name=String(req.body?.name??req.candidate.name).trim(),phone=String(req.body?.phone??req.candidate.phone).trim();
+  const experience=Number(req.body?.experience??req.candidate.experience??0);
+  const skills=Array.isArray(req.body?.skills)?req.body.skills.map(x=>String(x).trim()).filter(Boolean):String(req.body?.skills??req.candidate.skills.join(',')).split(',').map(x=>x.trim()).filter(Boolean);
   if(!name)return res.status(400).json({message:'Name is required'});
-  db.prepare('UPDATE candidates SET name=?,phone=?,updatedAt=? WHERE id=?').run(name,phone,now(),req.candidate.id);
+  if(!Number.isFinite(experience)||experience<0||experience>60)return res.status(400).json({message:'Enter a valid experience value'});
+  db.prepare('UPDATE candidates SET name=?,phone=?,experience=?,skills=?,updatedAt=? WHERE id=?').run(name,phone,experience,JSON.stringify(skills),now(),req.candidate.id);
   const candidate=db.prepare('SELECT id,name,email,phone,experience,skills,companyId FROM candidates WHERE id=?').get(req.candidate.id);
   res.json({candidate:rowWithId(candidate)});
  }catch(error){next(error);}
