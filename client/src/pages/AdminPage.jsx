@@ -67,6 +67,7 @@ export default function AdminPage(){
     const ok=await submit(body=>api.post("/admin/users",body),{...userForm,companyId});
     if(ok){setUserForm({...blankUser,role:roleOptions[user.role]?.[0]||"RECRUITER"});setSuccess("User account created successfully.");}
   }
+  async function toggleCompany(company){try{await api.patch('/admin/companies/'+company._id,{status:company.status==='Active'?'Inactive':'Active'});setSuccess(company.status==='Active'?'Company workspace deactivated.':'Company workspace activated.');await load();}catch(e){setError(e.response?.data?.message||'Unable to update company.');}}
   async function toggleUser(u){setError('');setSuccess('');try{await api.patch('/admin/users/'+u._id,{active:!u.active});setSuccess(u.active?'User account deactivated.':'User account activated.');await load();}catch(e){setError(e.response?.data?.message||'Unable to update user account.');}}
   async function createDepartment(e){
     e.preventDefault();
@@ -91,7 +92,7 @@ export default function AdminPage(){
         <div className="modal-actions" style={{gridColumn:"1 / -1"}}><button className="primary-btn" disabled={busy}><Plus size={15}/> Create company</button></div>
       </form>
       <div className="field" style={{marginTop:18,maxWidth:420}}><label>Selected company workspace</label><select value={companyId} onChange={e=>setCompanyId(e.target.value)}><option value="">Select a company</option>{companies.map(c=><option key={c._id} value={c._id}>{c.name} · {c.status}</option>)}</select></div>
-      <div className="table-wrap" style={{marginTop:14}}><table><thead><tr><th>Company</th><th>Industry</th><th>Contact</th><th>Status</th></tr></thead><tbody>{companies.map(c=><tr key={c._id}><td><b>{c.name}</b><div className="muted tiny">{c.slug}</div></td><td>{c.industry||"—"}</td><td>{c.email||"—"}</td><td><span className="status-pill active">{c.status}</span></td></tr>)}</tbody></table></div>
+      <div className="table-wrap" style={{marginTop:14}}><table><thead><tr><th>Company</th><th>Industry</th><th>Contact</th><th>Status</th><th>Access</th></tr></thead><tbody>{companies.map(c=><tr key={c._id}><td><b>{c.name}</b><div className="muted tiny">{c.slug}</div></td><td>{c.industry||"—"}</td><td>{c.email||"—"}</td><td><span className={c.status==='Active'?"status-pill active":"status-pill closed"}>{c.status}</span></td><td><button type="button" className="secondary-btn" onClick={()=>toggleCompany(c)}>{c.status==='Active'?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table></div>
     </section>}
     <div className="dashboard-grid" style={{alignItems:"start"}}>
       <section className="panel">
