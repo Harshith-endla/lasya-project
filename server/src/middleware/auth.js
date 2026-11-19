@@ -10,4 +10,5 @@ export async function protect(req,res,next){
     req.user=rowWithId(row); next();
   } catch { return res.status(401).json({message:'Invalid or expired session'}); }
 }
+export { requirePermission } from '../config/permissions.js';
 export const allow=(...roles)=>(req,res,next)=>req.user&&roles.includes(req.user.role)?next():res.status(403).json({message:'You do not have permission for this action'});
