@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { db, uid, now, rowWithId } from '../config/db.js';
 import { protect, requirePermission } from '../middleware/auth.js';
 import { hasPermission } from '../config/permissions.js';
@@ -290,16 +291,50 @@ router.patch('/notifications/:id/read',(req,res,next)=>{
  }catch(error){next(error);}
 });
 
+
+function decodePdfLiteral(value){
+ return value.replace(/\\([0-7]{1,3})/g,(_,oct)=>String.fromCharCode(parseInt(oct,8)))
+  .replace(/\\n/g,'\n').replace(/\\r/g,'\r').replace(/\\t/g,'\t')
+  .replace(/\\([()\\])/g,'$1');
+}
+function extractPdfText(buffer){
+ const source=buffer.toString('latin1'),parts=[];
+ const streams=source.matchAll(/<<(.*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/g);
+ for(const match of streams){
+  let data=Buffer.from(match[2],'latin1');
+  try{if(/\/FlateDecode/.test(match[1]))data=inflateSync(data,{maxOutputLength:1024*1024});}catch{continue;}
+  const content=data.toString('latin1');
+  for(const item of content.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g))parts.push(decodePdfLiteral(item[1]));
+  for(const item of content.matchAll(/\[((?:.|\n)*?)\]\s*TJ/g)){
+   const literals=item[1].matchAll(/\(((?:\\.|[^\\)])*)\)/g);
+   for(const literal of literals)parts.push(decodePdfLiteral(literal[1]));
+  }
+  for(const item of content.matchAll(/<([0-9A-Fa-f]{4,})>\s*Tj/g)){
+   try{const bytes=Buffer.from(item[1].length%2?'0'+item[1]:item[1],'hex');parts.push(bytes.toString('utf16le').replace(/\u0000/g,''));}catch{}
+  }
+  if(parts.join(' ').length>20000)break;
+ }
+ return parts.join(' ').replace(/\s+/g,' ').trim().slice(0,20000);
+}
 router.post('/resume-screening', requirePermission('resumes:read'), (req, res) => {
-  const skills = Array.isArray(req.body?.skills) ? req.body.skills : [];
-  const requirements = String(req.body?.requirements || '').toLowerCase();
-  const matchedSkills = skills.filter(skill => requirements.includes(String(skill).toLowerCase()));
-  res.json({
-    matchedSkills,
-    missingSkills: skills.filter(skill => !matchedSkills.includes(skill)),
-    matchPercent: skills.length ? Math.round(matchedSkills.length / skills.length * 100) : 0,
-    note: 'Keyword-based screening only. Review the original resume and assess candidates fairly; this is not an automated hiring decision.'
-  });
+  try{
+   let resumeText='';
+   if(req.body?.candidateId){
+    const candidate=isSuper(req)?db.prepare('SELECT * FROM candidates WHERE id=?').get(req.body.candidateId):companyRecord('candidates',req.body.candidateId,req.user.companyId);
+    if(!candidate)return res.status(404).json({message:'Candidate not found in your company'});
+    if(req.user.role==='RECRUITER'&&candidate.owner!==req.user._id)return res.status(403).json({message:'You can only screen candidates assigned to you'});
+    if(!candidate.resumeUrl)return res.status(404).json({message:'This candidate has no uploaded resume'});
+    const file=path.join(path.resolve(process.env.DATA_DIR||'data','resumes'),path.basename(candidate.resumeUrl));
+    if(!fs.existsSync(file))return res.status(404).json({message:'Resume file is unavailable'});
+    resumeText=extractPdfText(fs.readFileSync(file));
+    if(!resumeText)return res.status(422).json({message:'No selectable text could be extracted. Scanned PDFs require OCR and cannot be parsed by this built-in reader.'});
+   }
+   const skills=Array.isArray(req.body?.skills)?req.body.skills.map(x=>String(x).trim()).filter(Boolean):[];
+   const requirements=String(req.body?.requirements||'').toLowerCase();
+   const source=resumeText||skills.join(' ');
+   const matchedSkills=skills.filter(skill=>source.toLowerCase().includes(skill.toLowerCase())&&(!requirements||requirements.includes(skill.toLowerCase())));
+   res.json({matchedSkills,missingSkills:skills.filter(skill=>!matchedSkills.includes(skill)),matchPercent:skills.length?Math.round(matchedSkills.length/skills.length*100):0,extractedText:resumeText,source:resumeText?'Uploaded PDF':'Manually entered skills',note:'Keyword-based assistance only. It is not an AI assessment or an automated hiring decision. Review the original resume and assess candidates fairly.'});
+  }catch(error){next(error);}
 });
 
 export default router;
