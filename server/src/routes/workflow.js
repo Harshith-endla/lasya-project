@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import { db, uid, now, rowWithId } from '../config/db.js';
 import { protect, requirePermission } from '../middleware/auth.js';
 import { hasPermission } from '../config/permissions.js';
@@ -40,7 +42,7 @@ for (const [key, cfg] of Object.entries(configs)) {
         'SELECT t.* FROM onboarding_tasks t JOIN employees e ON e.id=t.employeeId WHERE t.companyId=? AND e.email=? ORDER BY t.createdAt DESC'
       ).all(req.user.companyId, req.user.email);
       else rows = db.prepare('SELECT * FROM ' + cfg.table + ' WHERE companyId=? ORDER BY createdAt DESC').all(req.user.companyId);
-      res.json(rows.map(row => { const item = rowWithId(row); if (key === 'assessments') { try { item.questions = JSON.parse(item.questions || '[]').map(({ answer, ...question }) => question); } catch { item.questions = []; } } return item; }));
+      res.json(rows.map(row => { const item = rowWithId(row); if (key === 'assessments') { try { item.questions = JSON.parse(item.questions || '[]').map(({ answer, ...question }) => question); } catch { item.questions = []; } } if (key === 'onboarding') delete item.documentPath; return item; }));
     } catch (error) { next(error); }
   });
 
@@ -101,6 +103,53 @@ for (const [key, cfg] of Object.entries(configs)) {
   });
 }
 
+
+
+const onboardingDir=path.resolve(process.env.DATA_DIR||'data','onboarding-documents');
+fs.mkdirSync(onboardingDir,{recursive:true});
+function pdfUpload(req,res,next){
+ if(!req.is('application/pdf'))return res.status(415).json({message:'Content-Type must be application/pdf'});
+ const chunks=[];let size=0,tooLarge=false;
+ req.on('data',chunk=>{if(tooLarge)return;size+=chunk.length;if(size>5*1024*1024){tooLarge=true;chunks.length=0;return;}chunks.push(chunk);});
+ req.on('end',()=>{if(tooLarge)return res.status(413).json({message:'Document must be 5 MB or smaller'});req.pdfBuffer=Buffer.concat(chunks);if(req.pdfBuffer.subarray(0,5).toString()!=='%PDF-')return res.status(415).json({message:'Only valid PDF files are accepted'});next();});
+ req.on('error',next);
+}
+function onboardingRecord(id,req){
+ return isSuper(req)?db.prepare('SELECT * FROM onboarding_tasks WHERE id=?').get(id):companyRecord('onboarding_tasks',id,req.user.companyId);
+}
+function canAccessOwnTask(task,req){
+ if(req.user.role!=='EMPLOYEE')return true;
+ return !!db.prepare('SELECT id FROM employees WHERE id=? AND email=? AND companyId=?').get(task.employeeId,req.user.email,req.user.companyId);
+}
+router.post('/onboarding/:id/document',pdfUpload,(req,res,next)=>{
+ const permission=req.user.role==='EMPLOYEE'?'onboarding:update:self':'onboarding:update';
+ requirePermission(permission)(req,res,()=>{
+  try{
+   const task=onboardingRecord(req.params.id,req);
+   if(!task)return res.status(404).json({message:'Onboarding task not found'});
+   if(!canAccessOwnTask(task,req))return res.status(403).json({message:'You can only upload documents for your own onboarding'});
+   const filename=uid()+'.pdf';
+   fs.writeFileSync(path.join(onboardingDir,filename),req.pdfBuffer,{flag:'wx'});
+   db.prepare('UPDATE onboarding_tasks SET documentName=?,documentPath=?,updatedAt=? WHERE id=? AND companyId=?')
+    .run('onboarding-document.pdf',filename,now(),task.id,task.companyId);
+   res.status(201).json({message:'Document uploaded',documentName:'onboarding-document.pdf'});
+  }catch(error){next(error);}
+ });
+});
+router.get('/onboarding/:id/document',(req,res,next)=>{
+ const permitted=hasPermission(req.user.role,'onboarding:read')||hasPermission(req.user.role,'onboarding:read:self');
+ if(!permitted)return res.status(403).json({message:'You do not have permission to view onboarding documents'});
+ try{
+  const task=onboardingRecord(req.params.id,req);
+  if(!task)return res.status(404).json({message:'Onboarding task not found'});
+  if(!canAccessOwnTask(task,req))return res.status(403).json({message:'You can only view your own onboarding documents'});
+  if(!task.documentPath)return res.status(404).json({message:'No document uploaded'});
+  const file=path.join(onboardingDir,path.basename(task.documentPath));
+  if(!fs.existsSync(file))return res.status(404).json({message:'Document file unavailable'});
+  res.type('application/pdf').setHeader('Content-Disposition','inline; filename="onboarding-document.pdf"');
+  res.sendFile(file);
+ }catch(error){next(error);}
+});
 
 router.post('/assessments/:id/grade', requirePermission('assessments:update'), (req,res,next)=>{
  try {
