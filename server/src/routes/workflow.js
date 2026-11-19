@@ -54,6 +54,7 @@ for (const [key, cfg] of Object.entries(configs)) {
       else if (selfEmployee) rows = db.prepare(
         'SELECT t.* FROM onboarding_tasks t JOIN employees e ON e.id=t.employeeId WHERE t.companyId=? AND e.email=? ORDER BY t.createdAt DESC'
       ).all(req.user.companyId, req.user.email);
+      else if(req.user.role==='INTERVIEW_PANEL'&&key==='assessments') rows=db.prepare('SELECT DISTINCT a.* FROM assessments a JOIN interviews i ON i.candidate=a.candidateId WHERE a.companyId=? AND i.panelist=? ORDER BY a.createdAt DESC').all(req.user.companyId,req.user._id);
       else if(req.user.role==='RECRUITER'&&key==='assessments') rows=db.prepare('SELECT a.* FROM assessments a JOIN candidates c ON c.id=a.candidateId WHERE a.companyId=? AND c.owner=? ORDER BY a.createdAt DESC').all(req.user.companyId,req.user._id);
       else if(req.user.role==='RECRUITER'&&key==='offers') rows=db.prepare('SELECT o.* FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.companyId=? AND c.owner=? ORDER BY o.createdAt DESC').all(req.user.companyId,req.user._id);
       else rows = db.prepare('SELECT * FROM ' + cfg.table + ' WHERE companyId=? ORDER BY createdAt DESC').all(req.user.companyId);
@@ -328,6 +329,7 @@ router.post('/resume-screening', requirePermission('resumes:read'), (req, res) =
     const candidate=isSuper(req)?db.prepare('SELECT * FROM candidates WHERE id=?').get(req.body.candidateId):companyRecord('candidates',req.body.candidateId,req.user.companyId);
     if(!candidate)return res.status(404).json({message:'Candidate not found in your company'});
     if(req.user.role==='RECRUITER'&&candidate.owner!==req.user._id)return res.status(403).json({message:'You can only screen candidates assigned to you'});
+    if(req.user.role==='INTERVIEW_PANEL'&&!db.prepare('SELECT id FROM interviews WHERE candidate=? AND panelist=? AND companyId=?').get(candidate.id,req.user._id,candidate.companyId))return res.status(403).json({message:'You can only screen candidates in your assigned interviews'});
     if(!candidate.resumeUrl)return res.status(404).json({message:'This candidate has no uploaded resume'});
     const file=path.join(path.resolve(process.env.DATA_DIR||'data','resumes'),path.basename(candidate.resumeUrl));
     if(!fs.existsSync(file))return res.status(404).json({message:'Resume file is unavailable'});
