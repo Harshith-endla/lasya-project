@@ -189,6 +189,35 @@ router.post('/assessments/:id/grade', requirePermission('assessments:update'), (
  }catch(error){next(error);}
 });
 
+
+function makeSimplePdf(lines){
+ const clean=value=>String(value??'').normalize('NFKD').replace(/[^\\x20-\\x7E]/g,' ').replace(/\\\\/g,'\\\\\\\\').replace(/\\(/g,'\\\\(').replace(/\\)/g,'\\\\)');
+ const commands=['BT','/F1 12 Tf','50 760 Td','16 TL',...lines.flatMap((line,index)=>index?['T*','('+clean(line)+') Tj']:['('+clean(line)+') Tj']),'ET'].join('\\n');
+ const stream=Buffer.from(commands,'ascii');
+ const objects=[
+  '<< /Type /Catalog /Pages 2 0 R >>',
+  '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+  '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+  '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  '<< /Length '+stream.length+' >>\\nstream\\n'+stream.toString('ascii')+'\\nendstream'
+ ];
+ let pdf='%PDF-1.4\\n',offsets=[0];
+ for(let i=0;i<objects.length;i++){offsets.push(Buffer.byteLength(pdf,'ascii'));pdf+=(i+1)+' 0 obj\\n'+objects[i]+'\\nendobj\\n';}
+ const xref=Buffer.byteLength(pdf,'ascii');pdf+='xref\\n0 '+(objects.length+1)+'\\n0000000000 65535 f \\n';
+ for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \\n';
+ pdf+='trailer\\n<< /Size '+(objects.length+1)+' /Root 1 0 R >>\\nstartxref\\n'+xref+'\\n%%EOF';
+ return Buffer.from(pdf,'ascii');
+}
+
+router.get('/offers/:id/letter.pdf', requirePermission('offers:read'), (req,res,next)=>{
+ try{
+  const offer=isSuper(req)?db.prepare('SELECT o.*,c.name AS candidateName FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.id=?').get(req.params.id):db.prepare('SELECT o.*,c.name AS candidateName FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.id=? AND o.companyId=?').get(req.params.id,req.user.companyId);
+  if(!offer)return res.status(404).json({message:'Offer not found'});
+  const pdf=makeSimplePdf(['EMPLOYMENT OFFER','', 'Date: '+new Date().toLocaleDateString('en-IN'),'','Dear '+offer.candidateName+',','', 'We are pleased to offer you the position of '+(offer.jobTitle||'Team Member')+'.','Annual compensation: INR '+(offer.salary||'To be discussed'),'Proposed joining date: '+(offer.joiningDate||'To be confirmed'),'','Additional details:',offer.letterText||'Please contact Human Resources for next steps.','','Regards,','Human Resources']);
+  res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="offer-letter.pdf"');res.send(pdf);
+ }catch(error){next(error);}
+});
+
 router.get('/offers/:id/letter', requirePermission('offers:read'), (req,res,next)=>{
  try{
   const offer=isSuper(req)?db.prepare('SELECT o.*,c.name AS candidateName,c.email AS candidateEmail FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.id=?').get(req.params.id)
