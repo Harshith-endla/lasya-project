@@ -109,7 +109,7 @@ router.get('/me/resume',candidateProtect,(req,res,next)=>{
 
 router.get('/my-assessments',candidateProtect,(req,res,next)=>{
  try{
-  const rows=db.prepare("SELECT id,title,assessmentType,dueDate,status,instructions,questions,maxScore FROM assessments WHERE candidateId=? AND companyId=? ORDER BY createdAt DESC").all(req.candidate.id,req.candidate.companyId);
+  const rows=db.prepare("SELECT id,title,assessmentType,dueDate,status,instructions,questions,maxScore,score,submittedAt FROM assessments WHERE candidateId=? AND companyId=? ORDER BY createdAt DESC").all(req.candidate.id,req.candidate.companyId);
   res.json(rows.map(row=>{let questions=[];try{questions=JSON.parse(row.questions||'[]').map(({prompt,options})=>({prompt,options}));}catch{}return {...rowWithId(row),questions};}));
  }catch(error){next(error);}
 });
