@@ -101,12 +101,14 @@ for (const [key, cfg] of Object.entries(configs)) {
           ? db.prepare('SELECT * FROM ' + cfg.table + ' WHERE id=?').get(req.params.id)
           : companyRecord(cfg.table, req.params.id, req.user.companyId);
         if (!current) return res.status(404).json({ message: 'Record not found' });
+        if(req.user.role==='INTERVIEW_PANEL'&&key==='assessments'&&!db.prepare('SELECT id FROM interviews WHERE candidate=? AND panelist=? AND companyId=?').get(current.candidateId,req.user._id,current.companyId))return res.status(403).json({message:'You can only update assessments for candidates in your assigned interviews'});
+        if (key==='assessments'&&current.status==='Completed')return res.status(409).json({message:'Completed assessments cannot be edited'});
         if (selfEmployee) {
           const assigned = db.prepare('SELECT id FROM employees WHERE id=? AND email=? AND companyId=?')
             .get(current.employeeId, req.user.email, req.user.companyId);
           if (!assigned) return res.status(403).json({ message: 'You can only update your own onboarding tasks' });
         }
-        const allowed = selfEmployee ? ['status', 'notes'] : cfg.fields;
+        const allowed = selfEmployee ? ['status', 'notes'] : (req.user.role==='INTERVIEW_PANEL'&&key==='assessments'?['status']:cfg.fields);
         const updates = allowed.filter(field => req.body?.[field] !== undefined);
         if(key==='assessments'&&req.body?.maxScore!==undefined&&(!Number.isFinite(Number(req.body.maxScore))||Number(req.body.maxScore)<=0||Number(req.body.maxScore)>10000))return res.status(400).json({message:'Maximum score must be between 1 and 10,000'});
         const normalizedQuestions=key==='assessments'?validateQuestions(req.body?.questions):null;
