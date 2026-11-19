@@ -54,6 +54,8 @@ for (const [key, cfg] of Object.entries(configs)) {
       else if (selfEmployee) rows = db.prepare(
         'SELECT t.* FROM onboarding_tasks t JOIN employees e ON e.id=t.employeeId WHERE t.companyId=? AND e.email=? ORDER BY t.createdAt DESC'
       ).all(req.user.companyId, req.user.email);
+      else if(req.user.role==='RECRUITER'&&key==='assessments') rows=db.prepare('SELECT a.* FROM assessments a JOIN candidates c ON c.id=a.candidateId WHERE a.companyId=? AND c.owner=? ORDER BY a.createdAt DESC').all(req.user.companyId,req.user._id);
+      else if(req.user.role==='RECRUITER'&&key==='offers') rows=db.prepare('SELECT o.* FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.companyId=? AND c.owner=? ORDER BY o.createdAt DESC').all(req.user.companyId,req.user._id);
       else rows = db.prepare('SELECT * FROM ' + cfg.table + ' WHERE companyId=? ORDER BY createdAt DESC').all(req.user.companyId);
       res.json(rows.map(row => { const item = rowWithId(row); if (key === 'assessments') { try { item.questions = JSON.parse(item.questions || '[]').map(({ answer, ...question }) => question); } catch { item.questions = []; } } if (key === 'onboarding') delete item.documentPath; return item; }));
     } catch (error) { next(error); }
@@ -69,9 +71,11 @@ for (const [key, cfg] of Object.entries(configs)) {
       const companyId = isSuper(req) ? (body.companyId || req.user.companyId) : req.user.companyId;
       if (!companyId || !db.prepare('SELECT id FROM companies WHERE id=?').get(companyId))
         return res.status(400).json({ message: 'A valid company workspace is required' });
-      if (cfg.fields.includes('candidateId') && body.candidateId &&
-          !companyRecord('candidates', body.candidateId, companyId))
-        return res.status(400).json({ message: 'Candidate must belong to this company' });
+      if (cfg.fields.includes('candidateId') && body.candidateId) {
+        const targetCandidate=companyRecord('candidates',body.candidateId,companyId);
+        if(!targetCandidate)return res.status(400).json({message:'Candidate must belong to this company'});
+        if(req.user.role==='RECRUITER'&&targetCandidate.owner!==req.user._id)return res.status(403).json({message:'You can only create assessments for candidates assigned to you'});
+      }
       if (cfg.fields.includes('employeeId') && body.employeeId &&
           !companyRecord('employees', body.employeeId, companyId))
         return res.status(400).json({ message: 'Employee must belong to this company' });
@@ -174,6 +178,7 @@ router.post('/assessments/:id/grade', requirePermission('assessments:update'), (
    ? db.prepare('SELECT * FROM assessments WHERE id=?').get(req.params.id)
    : companyRecord('assessments',req.params.id,req.user.companyId);
   if(!assessment)return res.status(404).json({message:'Assessment not found'});
+  if(req.user.role==='INTERVIEW_PANEL'&&!db.prepare('SELECT id FROM interviews WHERE candidate=? AND panelist=? AND companyId=?').get(assessment.candidateId,req.user._id,assessment.companyId))return res.status(403).json({message:'You can only grade assessments for candidates in your assigned interviews'});
   let questions=[];
   try{questions=JSON.parse(assessment.questions||'[]');}catch{}
   if(!questions.length)return res.status(400).json({message:'This assessment has no configured questions'});
