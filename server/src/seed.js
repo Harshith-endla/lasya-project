@@ -17,7 +17,7 @@ for(const [name,email,role,department] of userRows){const id=uid();ids[email]=id
 const insertJob=db.prepare('INSERT INTO jobs(id,title,department,location,employmentType,description,requirements,openings,status,assignedRecruiter,createdBy,companyId,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
 const jobIds=[uid(),uid(),uid()];
 insertJob.run(jobIds[0],'Senior React Developer','Engineering','Bengaluru','Full-time','Build accessible, performant web applications.','React, JavaScript, API integration',2,'Open',ids['recruiter@demo.com'],ids['hr@demo.com'],companyId,t,t);
-insertJob.run(jobIds[1],'HR Operations Associate','Human Resources','Hybrid','Full-time','Support people operations and onboarding.','Communication, Excel, HR operations',1,'Open',ids['recruiter@demo.com'],ids['hr@demo.com'],t,t);
+insertJob.run(jobIds[1],'HR Operations Associate','Human Resources','Hybrid','Full-time','Support people operations and onboarding.','Communication, Excel, HR operations',1,'Open',ids['recruiter@demo.com'],ids['hr@demo.com'],companyId,t,t);
 insertJob.run(jobIds[2],'Product Analyst','Product','Remote','Full-time','Translate product data into insights.','SQL, analytics, stakeholder communication',1,'On Hold',ids['recruiter@demo.com'],ids['hr@demo.com'],companyId,t,t);
 const insertCandidate=db.prepare('INSERT INTO candidates(id,name,email,phone,job,source,experience,skills,resumeUrl,stage,notes,owner,companyId,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
 const candidateIds=[uid(),uid(),uid(),uid()];
