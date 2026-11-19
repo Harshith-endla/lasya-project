@@ -2,12 +2,14 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { inflateSync } from 'node:zlib';
+import rateLimit from 'express-rate-limit';
 import { db, uid, now, rowWithId } from '../config/db.js';
 import { protect, requirePermission } from '../middleware/auth.js';
 import { hasPermission } from '../config/permissions.js';
 
 const router = Router();
 router.use(protect);
+const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many sign-in attempts. Try again later.'}});
 
 const configs = {
   assessments: {
@@ -83,6 +85,7 @@ for (const [key, cfg] of Object.entries(configs)) {
       const id = uid(), timestamp = now();
       if(key==='assessments'&&body.maxScore!==undefined&&(!Number.isFinite(Number(body.maxScore))||Number(body.maxScore)<=0||Number(body.maxScore)>10000))return res.status(400).json({message:'Maximum score must be between 1 and 10,000'});
       const normalizedQuestions=key==='assessments'?validateQuestions(body.questions):null;
+      if(key==='assessments'&&(!normalizedQuestions||JSON.parse(normalizedQuestions).length===0))return res.status(400).json({message:'Add at least one valid assessment question'});
       const values = cfg.fields.map(field => { const value = body[field] ?? cfg.defaults[field] ?? null; return field === 'questions' ? (normalizedQuestions ?? (Array.isArray(value)?JSON.stringify(value):value)) : value; });
       db.prepare('INSERT INTO ' + cfg.table + '(id,companyId,' + cfg.fields.join(',') +
         ',createdAt,updatedAt) VALUES(' + Array(cfg.fields.length + 4).fill('?').join(',') + ')')
@@ -179,6 +182,7 @@ router.post('/assessments/:id/grade', requirePermission('assessments:update'), (
    ? db.prepare('SELECT * FROM assessments WHERE id=?').get(req.params.id)
    : companyRecord('assessments',req.params.id,req.user.companyId);
   if(!assessment)return res.status(404).json({message:'Assessment not found'});
+  if(assessment.status==='Completed')return res.status(409).json({message:'Completed assessments cannot be graded again'});
   if(req.user.role==='INTERVIEW_PANEL'&&!db.prepare('SELECT id FROM interviews WHERE candidate=? AND panelist=? AND companyId=?').get(assessment.candidateId,req.user._id,assessment.companyId))return res.status(403).json({message:'You can only grade assessments for candidates in your assigned interviews'});
   let questions=[];
   try{questions=JSON.parse(assessment.questions||'[]');}catch{}
