@@ -17,7 +17,7 @@ const roleCreationPolicy = {
   HR_MANAGER: new Set(['RECRUITER','INTERVIEW_PANEL','EMPLOYEE'])
 };
 const companyFor = req => req.user.role === 'SUPER_ADMIN'
-  ? clean(req.query.companyId || req.body.companyId)
+  ? clean(req.query.companyId || req.body?.companyId)
   : req.user.companyId;
 
 router.get('/companies', (req,res,next) => {
