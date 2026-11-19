@@ -8,10 +8,12 @@ import Reports from "./pages/Reports";
 import AdminPage from "./pages/AdminPage";
 import WorkflowPage from "./pages/WorkflowPage";
 import CareersPage from "./pages/CareersPage";
+import CandidatePortalPage from "./pages/CandidatePortalPage";
 function Protected({children}){const {user,loading}=useAuth();if(loading)return <div className="loading-screen">Loading your workspace…</div>;return user?children:<Navigate to="/login" replace/>;}
 export default function App(){const {user}=useAuth();return <Routes>
  <Route path="/login" element={user?<Navigate to="/" replace/>:<Login/>}/>
  <Route path="/careers" element={<CareersPage/>}/>
+ <Route path="/candidate-portal" element={<CandidatePortalPage/>}/>
  <Route path="/" element={<Protected><Layout/></Protected>}>
   <Route index element={<Dashboard/>}/>
   <Route path="admin" element={<AdminPage/>}/>
