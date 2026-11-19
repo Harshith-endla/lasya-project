@@ -100,6 +100,7 @@ router.post('/my-assessments/:id/submit',candidateProtect,(req,res,next)=>{
   if(!questions.length)return res.status(400).json({message:'This assessment has no questions yet'});
   const answers=req.body?.answers;
   if(!answers||typeof answers!=='object'||Array.isArray(answers))return res.status(400).json({message:'Submit your answers'});
+  if(questions.some((q,index)=>answers[index]===undefined||!Number.isInteger(Number(answers[index]))||Number(answers[index])<0||Number(answers[index])>=q.options.length))return res.status(400).json({message:'Answer every question before submitting'});
   const valid=questions.filter(q=>q.answer!==undefined&&q.answer!==null);
   if(valid.length!==questions.length)return res.status(400).json({message:'This assessment requires valid answer keys'});
   const correct=questions.reduce((n,q,i)=>n+(String(answers[i]??'')===String(q.answer)?1:0),0);
