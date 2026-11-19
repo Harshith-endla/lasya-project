@@ -101,12 +101,15 @@ for (const [key, cfg] of Object.entries(configs)) {
   });
 }
 
-router.get('/notifications', requirePermission('notifications:read'), (req, res, next) => {
+router.get('/notifications', (req, res, next) => {
+  if (!hasPermission(req.user.role, 'notifications:read') && !hasPermission(req.user.role, 'notifications:read:self'))
+    return res.status(403).json({ message: 'You do not have permission to view notifications.' });
   try {
     const rows = isSuper(req)
       ? db.prepare('SELECT * FROM notifications ORDER BY createdAt DESC LIMIT 100').all()
-      : db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100')
-        .all(req.user.companyId, req.user._id);
+      : req.user.role === 'EMPLOYEE'
+        ? db.prepare('SELECT * FROM notifications WHERE companyId=? AND userId=? ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id)
+        : db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id);
     res.json(rows.map(rowWithId));
   } catch (error) { next(error); }
 });
