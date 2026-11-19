@@ -1,0 +1,21 @@
+import {Router} from 'express';
+import {db,uid,now,rowWithId} from '../config/db.js';
+import {protect,requirePermission} from '../middleware/auth.js';
+
+const router=Router();
+router.use(protect);
+
+const resources={
+ assessments:{table:'assessments',permission:'assessments',fields:['candidateId','title','assessmentType','dueDate','score','status'],required:['candidateId','title'],defaults:{assessmentType:'Technical',status:'Pending'}},
+ offers:{table:'offers',permission:'offers',fields:['candidateId','jobTitle','salary','joiningDate','status'],required:['candidateId'],defaults:{status:'Draft'}},
+ onboarding:{table:'onboarding_tasks',permission:'onboarding',fields:['employeeId','title','dueDate','status','notes'],required:['employeeId','title'],defaults:{status:'Pending'}}
+};
+for(const [key,cfg] of Object.entries(resources)){
+ router.get('/'+key,requirePermission(cfg.permission+':read'),(req,res,next)=>{try{const rows=req.user.role==='SUPER_ADMIN'?db.prepare('SELECT * FROM '+cfg.table+' ORDER BY createdAt DESC').all():db.prepare('SELECT * FROM '+cfg.table+' WHERE companyId=? ORDER BY createdAt DESC').all(req.user.companyId);res.json(rows.map(rowWithId));}catch(e){next(e)}});
+ router.post('/'+key,requirePermission(cfg.permission+':create'),(req,res,next)=>{try{const b=req.body||{};for(const field of cfg.required)if(!b[field])return res.status(400).json({message:field+' is required'});const companyId=req.user.companyId;if(!companyId)return res.status(400).json({message:'Company workspace required'});const id=uid(),t=now(),values=cfg.fields.map(f=>b[f]??cfg.defaults[f]??null);db.prepare('INSERT INTO '+cfg.table+'(id,companyId,'+cfg.fields.join(',')+',createdAt,updatedAt) VALUES('+Array(cfg.fields.length+4).fill('?').join(',')+')').run(id,companyId,...values,t,t);res.status(201).json(rowWithId(db.prepare('SELECT * FROM '+cfg.table+' WHERE id=?').get(id)));}catch(e){next(e)}});
+ router.patch('/'+key+'/:id',requirePermission(cfg.permission+':update'),(req,res,next)=>{try{const current=req.user.role==='SUPER_ADMIN'?db.prepare('SELECT * FROM '+cfg.table+' WHERE id=?').get(req.params.id):db.prepare('SELECT * FROM '+cfg.table+' WHERE id=? AND companyId=?').get(req.params.id,req.user.companyId);if(!current)return res.status(404).json({message:'Record not found'});const updates=cfg.fields.filter(f=>req.body[f]!==undefined);if(!updates.length)return res.json(rowWithId(current));db.prepare('UPDATE '+cfg.table+' SET '+updates.map(f=>f+'=?').join(',')+',updatedAt=? WHERE id=?').run(...updates.map(f=>req.body[f]),now(),req.params.id);res.json(rowWithId(db.prepare('SELECT * FROM '+cfg.table+' WHERE id=?').get(req.params.id)));}catch(e){next(e)}});
+}
+router.get('/notifications',requirePermission('notifications:read'),(req,res,next)=>{try{const rows=req.user.role==='SUPER_ADMIN'?db.prepare('SELECT * FROM notifications ORDER BY createdAt DESC LIMIT 100').all():db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId,req.user._id);res.json(rows.map(rowWithId));}catch(e){next(e)}});
+router.post('/notifications',requirePermission('notifications:read'),(req,res,next)=>{try{if(!req.body.title||!req.body.message)return res.status(400).json({message:'Title and message are required'});const id=uid();db.prepare('INSERT INTO notifications(id,companyId,userId,title,message,channel,status,createdAt) VALUES(?,?,?,?,?,?,?,?)').run(id,req.user.companyId,req.body.userId||null,req.body.title,req.body.message,'In-app','Unread',now());res.status(201).json(rowWithId(db.prepare('SELECT * FROM notifications WHERE id=?').get(id)));}catch(e){next(e)}});
+router.post('/resume-screening',requirePermission('resumes:read'),(req,res)=>{const skills=Array.isArray(req.body.skills)?req.body.skills:[];const requirements=String(req.body.requirements||'').toLowerCase();const matched=skills.filter(s=>requirements.includes(String(s).toLowerCase()));res.json({matchedSkills:matched,missingSkills:skills.filter(s=>!matched.includes(s)),matchPercent:skills.length?Math.round(matched.length/skills.length*100):0,note:'Keyword-based screening only. Review the original resume before making hiring decisions.'});});
+export default router;
