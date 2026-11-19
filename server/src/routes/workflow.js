@@ -7,6 +7,7 @@ import { protect, requirePermission } from '../middleware/auth.js';
 import { hasPermission } from '../config/permissions.js';
 
 const router = Router();
+const workflowStatuses={assessments:['Pending','In Progress','Completed'],offers:['Draft','Sent','Accepted','Declined','Withdrawn'],onboarding:['Pending','In Progress','Completed']};
 router.use(protect);
 
 const configs = {
@@ -65,6 +66,7 @@ for (const [key, cfg] of Object.entries(configs)) {
   router.post('/' + key, requirePermission(cfg.permission + ':create'), (req, res, next) => {
     try {
       const body = req.body || {};
+      if(body.status&&!workflowStatuses[key].includes(body.status))return res.status(400).json({message:'Invalid '+key+' status'});
       for (const field of cfg.required) {
         if (body[field] === undefined || body[field] === null || String(body[field]).trim() === '')
           return res.status(400).json({ message: field + ' is required' });
@@ -109,6 +111,7 @@ for (const [key, cfg] of Object.entries(configs)) {
           if (!assigned) return res.status(403).json({ message: 'You can only update your own onboarding tasks' });
         }
         const allowed = selfEmployee ? ['status', 'notes'] : (req.user.role==='INTERVIEW_PANEL'&&key==='assessments'?['status']:cfg.fields);
+        if(req.body?.status&&!workflowStatuses[key].includes(req.body.status))return res.status(400).json({message:'Invalid '+key+' status'});
         const updates = allowed.filter(field => req.body?.[field] !== undefined);
         if(key==='assessments'&&req.body?.maxScore!==undefined&&(!Number.isFinite(Number(req.body.maxScore))||Number(req.body.maxScore)<=0||Number(req.body.maxScore)>10000))return res.status(400).json({message:'Maximum score must be between 1 and 10,000'});
         const normalizedQuestions=key==='assessments'?validateQuestions(req.body?.questions):null;
