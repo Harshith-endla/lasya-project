@@ -232,6 +232,7 @@ router.post('/notifications', requirePermission('notifications:create'), async (
       if(!response.ok)return res.status(502).json({message:'Email provider rejected the notification'});
       deliveryStatus='Sent';
     }else if(channel==='SMS'){
+      if(!recipient)return res.status(400).json({message:'Select a company user for SMS delivery'});
       const phone=String(req.body.phone||'').trim();
       if(!phone)return res.status(400).json({message:'Enter the recipient phone number for SMS'});
       if(!process.env.TWILIO_ACCOUNT_SID||!process.env.TWILIO_AUTH_TOKEN||!process.env.TWILIO_FROM_NUMBER)return res.status(503).json({message:'SMS delivery is not configured. Add the Twilio environment settings.'});
