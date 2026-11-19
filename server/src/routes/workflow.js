@@ -61,7 +61,7 @@ for (const [key, cfg] of Object.entries(configs)) {
           !companyRecord('employees', body.employeeId, companyId))
         return res.status(400).json({ message: 'Employee must belong to this company' });
       const id = uid(), timestamp = now();
-      const values = cfg.fields.map(field => body[field] ?? cfg.defaults[field] ?? null);
+      const values = cfg.fields.map(field => { const value = body[field] ?? cfg.defaults[field] ?? null; return field === 'questions' && Array.isArray(value) ? JSON.stringify(value) : value; });
       db.prepare('INSERT INTO ' + cfg.table + '(id,companyId,' + cfg.fields.join(',') +
         ',createdAt,updatedAt) VALUES(' + Array(cfg.fields.length + 4).fill('?').join(',') + ')')
         .run(id, companyId, ...values, timestamp, timestamp);
@@ -94,7 +94,7 @@ for (const [key, cfg] of Object.entries(configs)) {
           return res.status(400).json({ message: 'Employee must belong to this company' });
         db.prepare('UPDATE ' + cfg.table + ' SET ' + updates.map(field => field + '=?').join(',') +
           ',updatedAt=? WHERE id=? AND companyId=?')
-          .run(...updates.map(field => req.body[field]), now(), req.params.id, current.companyId);
+          .run(...updates.map(field => field === 'questions' && Array.isArray(req.body[field]) ? JSON.stringify(req.body[field]) : req.body[field]), now(), req.params.id, current.companyId);
         res.json(rowWithId(db.prepare('SELECT * FROM ' + cfg.table + ' WHERE id=?').get(req.params.id)));
       } catch (error) { next(error); }
     });
