@@ -53,6 +53,7 @@ router.patch('/companies/:id',(req,res,next)=>{
   if(!['Active','Inactive'].includes(values[6]))return res.status(400).json({message:'Company status must be Active or Inactive'});
   db.prepare('UPDATE companies SET name=?,industry=?,website=?,email=?,phone=?,address=?,status=?,updatedAt=? WHERE id=?')
    .run(...values,now(),req.params.id);
+  db.prepare('UPDATE users SET company=?,updatedAt=? WHERE companyId=?').run(values[0],now(),req.params.id);
   res.json({company:rowWithId(db.prepare('SELECT * FROM companies WHERE id=?').get(req.params.id)),message:'Company updated'});
  }catch(error){next(error);}
 });
