@@ -28,13 +28,13 @@ router.get('/',protect,(req,res,next)=>{try{
   if(role==='RECRUITER'){recentSql+=' AND (c.owner=? OR c.owner IS NULL)';recentArgs.push(req.user._id)}
   if(role==='INTERVIEW_PANEL'){recentSql+=' AND c.id IN (SELECT candidate FROM interviews WHERE panelist=?)';recentArgs.push(req.user._id)}
   recentSql+=' ORDER BY c.createdAt DESC LIMIT 5';
-  recentCandidates=db.prepare(recentSql).all(...recentArgs).map(r=>{const x=rowWithId(r);x.skills=parseJson(x.skills);x.job=x.job?{_id:x.job,title:r.jobTitle}:null;delete x.jobTitle;return x});
+  recentCandidates=db.prepare(recentSql).all(...recentArgs).map(r=>{const x=rowWithId(r);delete x.passwordHash;x.skills=parseJson(x.skills);x.job=x.job?{_id:x.job,title:r.jobTitle}:null;delete x.jobTitle;return x});
  }
  let upcoming=[];
  if(can('interviews:read')){
   let upcomingSql=`SELECT i.*,c.name AS candidateName,j.title AS jobTitle FROM interviews i LEFT JOIN candidates c ON c.id=i.candidate LEFT JOIN jobs j ON j.id=i.job WHERE i.scheduledAt>=? AND i.status='Scheduled'`,upcomingArgs=[new Date().toISOString()];
   if(scoped){upcomingSql+=' AND i.companyId=?';upcomingArgs.push(companyId)}
-  if(role==='INTERVIEW_PANEL'){upcomingSql+=' AND i.panelist=?';upcomingArgs.push(req.user._id)}
+  if(role==='INTERVIEW_PANEL'){upcomingSql+=' AND i.panelist=?';upcomingArgs.push(req.user._id)}else if(role==='RECRUITER'){upcomingSql+=' AND i.candidate IN (SELECT id FROM candidates WHERE owner=? AND companyId=?)';upcomingArgs.push(req.user._id,companyId)}
   upcomingSql+=' ORDER BY i.scheduledAt LIMIT 5';
   upcoming=db.prepare(upcomingSql).all(...upcomingArgs).map(r=>{const x=rowWithId(r);x.candidate={name:r.candidateName};x.job={title:r.jobTitle};delete x.candidateName;delete x.jobTitle;return x});
  }
