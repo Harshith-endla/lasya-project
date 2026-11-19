@@ -7,7 +7,7 @@ import path from 'node:path';
 import { db, uid, now, rowWithId } from '../config/db.js';
 
 const router=Router();
-function candidateProtect(req,res,next){try{const token=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):null;if(!token)return res.status(401).json({message:'Candidate sign-in required'});const payload=jwt.verify(token,process.env.JWT_SECRET);if(!payload.candidateId)return res.status(401).json({message:'Invalid candidate session'});const candidate=db.prepare('SELECT c.id,c.name,c.email,c.phone,c.experience,c.skills,c.companyId,c.stage,c.job,c.createdAt,j.title AS jobTitle FROM candidates c LEFT JOIN jobs j ON j.id=c.job WHERE c.id=?').get(payload.candidateId);if(!candidate)return res.status(401).json({message:'Candidate account unavailable'});try{candidate.skills=JSON.parse(candidate.skills||'[]')}catch{candidate.skills=[]}req.candidate=candidate;next();}catch{return res.status(401).json({message:'Candidate session expired. Please sign in again.'});}}
+function candidateProtect(req,res,next){try{const token=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):null;if(!token)return res.status(401).json({message:'Candidate sign-in required'});const payload=jwt.verify(token,process.env.JWT_SECRET);if(!payload.candidateId)return res.status(401).json({message:'Invalid candidate session'});const candidate=db.prepare('SELECT c.id,c.name,c.email,c.phone,c.experience,c.skills,c.companyId,c.stage,c.job,c.createdAt,c.resumeUrl,j.title AS jobTitle FROM candidates c LEFT JOIN jobs j ON j.id=c.job WHERE c.id=?').get(payload.candidateId);if(!candidate)return res.status(401).json({message:'Candidate account unavailable'});try{candidate.skills=JSON.parse(candidate.skills||'[]')}catch{candidate.skills=[]}req.candidate=candidate;next();}catch{return res.status(401).json({message:'Candidate session expired. Please sign in again.'});}}
 const applyLimit=rateLimit({windowMs:60*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many applications from this connection. Please try again later.'}});
 const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many sign-in attempts. Try again later.'}});
 
@@ -87,6 +87,26 @@ router.patch('/me',candidateProtect,(req,res,next)=>{
   res.json({candidate:rowWithId(candidate)});
  }catch(error){next(error);}
 });
+
+router.post('/me/resume',candidateProtect,publicPdf,(req,res,next)=>{
+ try{
+  const filename=uid()+'.pdf';
+  fs.writeFileSync(path.join(resumeDir,filename),req.pdfBuffer,{flag:'wx'});
+  db.prepare('UPDATE candidates SET resumeUrl=?,updatedAt=? WHERE id=?').run(filename,now(),req.candidate.id);
+  res.status(201).json({message:'Resume updated successfully'});
+ }catch(error){next(error);}
+});
+router.get('/me/resume',candidateProtect,(req,res,next)=>{
+ try{
+  const row=db.prepare('SELECT resumeUrl FROM candidates WHERE id=?').get(req.candidate.id);
+  if(!row?.resumeUrl)return res.status(404).json({message:'No resume uploaded'});
+  const file=path.join(resumeDir,path.basename(row.resumeUrl));
+  if(!fs.existsSync(file))return res.status(404).json({message:'Resume file unavailable'});
+  res.type('application/pdf').setHeader('Content-Disposition','inline; filename="my-resume.pdf"');
+  res.sendFile(file);
+ }catch(error){next(error);}
+});
+
 router.get('/my-assessments',candidateProtect,(req,res,next)=>{
  try{
   const rows=db.prepare("SELECT id,title,assessmentType,dueDate,status,instructions,questions,maxScore FROM assessments WHERE candidateId=? AND companyId=? ORDER BY createdAt DESC").all(req.candidate.id,req.candidate.companyId);
