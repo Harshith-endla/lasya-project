@@ -9,7 +9,7 @@ router.use(protect);
 const configs = {
   assessments: {
     table: 'assessments', permission: 'assessments',
-    fields: ['candidateId', 'title', 'assessmentType', 'dueDate', 'score', 'status'],
+    fields: ['candidateId', 'title', 'assessmentType', 'dueDate', 'score', 'status', 'instructions', 'questions', 'maxScore'],
     required: ['candidateId', 'title'], defaults: { assessmentType: 'Technical', status: 'Pending' }
   },
   offers: {
@@ -40,7 +40,7 @@ for (const [key, cfg] of Object.entries(configs)) {
         'SELECT t.* FROM onboarding_tasks t JOIN employees e ON e.id=t.employeeId WHERE t.companyId=? AND e.email=? ORDER BY t.createdAt DESC'
       ).all(req.user.companyId, req.user.email);
       else rows = db.prepare('SELECT * FROM ' + cfg.table + ' WHERE companyId=? ORDER BY createdAt DESC').all(req.user.companyId);
-      res.json(rows.map(rowWithId));
+      res.json(rows.map(row => { const item = rowWithId(row); if (key === 'assessments') { try { item.questions = JSON.parse(item.questions || '[]').map(({ answer, ...question }) => question); } catch { item.questions = []; } } return item; }));
     } catch (error) { next(error); }
   });
 
@@ -100,6 +100,40 @@ for (const [key, cfg] of Object.entries(configs)) {
     });
   });
 }
+
+
+router.post('/assessments/:id/grade', requirePermission('assessments:update'), (req,res,next)=>{
+ try {
+  const assessment=isSuper(req)
+   ? db.prepare('SELECT * FROM assessments WHERE id=?').get(req.params.id)
+   : companyRecord('assessments',req.params.id,req.user.companyId);
+  if(!assessment)return res.status(404).json({message:'Assessment not found'});
+  let questions=[];
+  try{questions=JSON.parse(assessment.questions||'[]');}catch{}
+  if(!questions.length)return res.status(400).json({message:'This assessment has no configured questions'});
+  const answers=req.body?.answers;
+  if(!answers||typeof answers!=='object'||Array.isArray(answers))
+   return res.status(400).json({message:'Provide an answer for each question'});
+  const valid=questions.filter(q=>q.answer!==undefined&&q.answer!==null);
+  if(!valid.length)return res.status(400).json({message:'Questions need answer keys before automatic scoring'});
+  const correct=valid.filter((q,i)=>String(answers[i]??'')===String(q.answer)).length;
+  const score=Math.round((correct/valid.length)*Number(assessment.maxScore||100)*100)/100;
+  db.prepare("UPDATE assessments SET score=?,status='Completed',submission=?,submittedAt=?,updatedAt=? WHERE id=? AND companyId=?")
+   .run(score,JSON.stringify(answers),now(),now(),assessment.id,assessment.companyId);
+  res.json({message:'Assessment graded',score,maxScore:Number(assessment.maxScore||100),correct,total:valid.length});
+ }catch(error){next(error);}
+});
+
+router.get('/offers/:id/letter', requirePermission('offers:read'), (req,res,next)=>{
+ try{
+  const offer=isSuper(req)?db.prepare('SELECT o.*,c.name AS candidateName,c.email AS candidateEmail FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.id=?').get(req.params.id)
+   :db.prepare('SELECT o.*,c.name AS candidateName,c.email AS candidateEmail FROM offers o JOIN candidates c ON c.id=o.candidateId WHERE o.id=? AND o.companyId=?').get(req.params.id,req.user.companyId);
+  if(!offer)return res.status(404).json({message:'Offer not found'});
+  const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Offer letter</title><style>body{font:15px Arial,sans-serif;max-width:760px;margin:50px auto;line-height:1.65;color:#222}h1{font-size:24px}button{padding:10px 16px}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print / Save as PDF</button><h1>Employment Offer</h1><p>Date: '+esc(new Date().toLocaleDateString('en-IN'))+'</p><p>Dear '+esc(offer.candidateName)+',</p><p>We are pleased to offer you the position of <b>'+esc(offer.jobTitle||'')+'</b>.</p><p>Annual compensation: '+esc(offer.salary||'To be discussed')+'</p><p>Proposed joining date: '+esc(offer.joiningDate||'To be confirmed')+'</p><p>'+esc(offer.letterText||'Please contact the HR team for further details and next steps.')+'</p><p>Regards,<br>Human Resources</p></body></html>';
+  res.type('html').send(html);
+ }catch(error){next(error);}
+});
 
 router.get('/notifications', (req, res, next) => {
   if (!hasPermission(req.user.role, 'notifications:read') && !hasPermission(req.user.role, 'notifications:read:self'))
