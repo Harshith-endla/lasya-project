@@ -67,6 +67,7 @@ export default function AdminPage(){
     const ok=await submit(body=>api.post("/admin/users",body),{...userForm,companyId});
     if(ok){setUserForm({...blankUser,role:roleOptions[user.role]?.[0]||"RECRUITER"});setSuccess("User account created successfully.");}
   }
+  async function toggleUser(u){setError('');setSuccess('');try{await api.patch('/admin/users/'+u._id,{active:!u.active});setSuccess(u.active?'User account deactivated.':'User account activated.');await load();}catch(e){setError(e.response?.data?.message||'Unable to update user account.');}}
   async function createDepartment(e){
     e.preventDefault();
     const ok=await submit(body=>api.post("/admin/departments",body),{...departmentForm,companyId});
@@ -104,7 +105,7 @@ export default function AdminPage(){
           <div className="field"><label>Temporary password *</label><input required type="password" minLength="8" value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})}/></div>
           <div className="modal-actions" style={{gridColumn:"1 / -1"}}><button className="primary-btn" disabled={busy||!companyId}><Plus size={15}/> Create account</button></div>
         </form>
-        <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th></tr></thead><tbody>{users.map(u=><tr key={u._id}><td><b>{u.name}</b><div className="muted tiny">{u.email}</div></td><td>{roleLabels[u.role]||u.role}</td><td>{u.department||"—"}</td><td><span className={u.active?"status-pill active":"status-pill closed"}>{u.active?"Active":"Inactive"}</span></td></tr>)}</tbody></table>{!users.length&&<div className="empty-state compact">No users found for this company.</div>}</div>
+        <div className="table-wrap" style={{marginTop:18}}><table><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Access</th></tr></thead><tbody>{users.map(u=><tr key={u._id}><td><b>{u.name}</b><div className="muted tiny">{u.email}</div></td><td>{roleLabels[u.role]||u.role}</td><td>{u.department||"—"}</td><td><span className={u.active?"status-pill active":"status-pill closed"}>{u.active?"Active":"Inactive"}</span></td><td><button type="button" className="secondary-btn" onClick={()=>toggleUser(u)} disabled={busy||u.role==='SUPER_ADMIN'&&user.role!=='SUPER_ADMIN'}>{u.active?'Deactivate':'Activate'}</button></td></tr>)}</tbody></table>{!users.length&&<div className="empty-state compact">No users found for this company.</div>}</div>
       </section>
       <section className="panel">
         <div className="panel-heading"><div><h3><Network size={17} style={{verticalAlign:"middle",marginRight:7}}/>Departments</h3><p className="muted">Organize the company into teams.</p></div></div>
