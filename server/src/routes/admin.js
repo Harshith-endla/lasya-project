@@ -95,8 +95,8 @@ router.patch('/users/:id', requirePermission('users:update'), (req,res,next) => 
       ? db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id)
       : db.prepare('SELECT * FROM users WHERE id=? AND companyId=?').get(req.params.id, req.user.companyId);
     if (!current) return res.status(404).json({message:'User account not found'});
-    if (current.role === 'SUPER_ADMIN' && req.user.role !== 'SUPER_ADMIN')
-      return res.status(403).json({message:'Only Super Admin can modify a Super Admin account'});
+    if (!roleCreationPolicy[req.user.role]?.has(current.role))
+      return res.status(403).json({message:'You cannot manage an account at this role level'});
     const body = req.body || {};
     const role = clean(body.role || current.role).toUpperCase();
     if (!allowedRoles.has(role)) return res.status(400).json({message:'Select a valid role'});
