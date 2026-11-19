@@ -81,6 +81,11 @@ export function connectDB() {
       message TEXT NOT NULL, channel TEXT DEFAULT 'In-app', status TEXT DEFAULT 'Unread',
       createdAt TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      id TEXT PRIMARY KEY, notificationId TEXT NOT NULL, userId TEXT NOT NULL, readAt TEXT NOT NULL,
+      UNIQUE(notificationId,userId), FOREIGN KEY(notificationId) REFERENCES notifications(id) ON DELETE CASCADE,
+      FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+    );
     CREATE TABLE IF NOT EXISTS payroll (
       id TEXT PRIMARY KEY, employee TEXT NOT NULL, period TEXT NOT NULL, gross REAL NOT NULL,
       deductions REAL DEFAULT 0, net REAL NOT NULL, status TEXT DEFAULT 'Draft',
