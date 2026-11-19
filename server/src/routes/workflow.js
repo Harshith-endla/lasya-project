@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, uid, now, rowWithId } from '../config/db.js';
 import { protect, requirePermission } from '../middleware/auth.js';
+import { hasPermission } from '../config/permissions.js';
 
 const router = Router();
 router.use(protect);
@@ -31,7 +32,7 @@ function isSuper(req) { return req.user.role === 'SUPER_ADMIN'; }
 for (const [key, cfg] of Object.entries(configs)) {
   router.get('/' + key, (req, res, next) => {
     const selfEmployee = key === 'onboarding' && req.user.role === 'EMPLOYEE';
-    if (!selfEmployee && !requirePermission(cfg.permission + ':read')(req, res, () => {})) return;
+    if (!selfEmployee && !hasPermission(req.user.role, cfg.permission + ':read')) return res.status(403).json({ message: 'You do not have permission to view this module.' });
     try {
       let rows;
       if (isSuper(req)) rows = db.prepare('SELECT * FROM ' + cfg.table + ' ORDER BY createdAt DESC').all();
