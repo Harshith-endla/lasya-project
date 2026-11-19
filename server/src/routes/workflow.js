@@ -213,18 +213,37 @@ router.get('/notifications', (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/notifications', requirePermission('notifications:create'), (req, res, next) => {
+router.post('/notifications', requirePermission('notifications:create'), async (req, res, next) => {
   try {
     const title = String(req.body?.title || '').trim();
     const message = String(req.body?.message || '').trim();
     if (!title || !message) return res.status(400).json({ message: 'Title and message are required' });
     if (!req.user.companyId) return res.status(400).json({ message: 'Company workspace required' });
     const userId = req.body.userId || null;
-    if (userId && !db.prepare('SELECT id FROM users WHERE id=? AND companyId=?').get(userId, req.user.companyId))
-      return res.status(400).json({ message: 'Recipient must belong to this company' });
+    const channel = String(req.body.channel || 'In-app');
+    if (!['In-app','Email','SMS'].includes(channel)) return res.status(400).json({message:'Choose In-app, Email or SMS'});
+    const recipient = userId ? db.prepare('SELECT id,email FROM users WHERE id=? AND companyId=?').get(userId, req.user.companyId) : null;
+    if (userId && !recipient) return res.status(400).json({ message: 'Recipient must belong to this company' });
+    let deliveryStatus='Unread';
+    if(channel==='Email'){
+      if(!recipient)return res.status(400).json({message:'Select a company user for email delivery'});
+      if(!process.env.RESEND_API_KEY||!process.env.EMAIL_FROM)return res.status(503).json({message:'Email delivery is not configured. Add RESEND_API_KEY and EMAIL_FROM to the server environment.'});
+      const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{'Authorization':'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[recipient.email],subject:title,text:message})});
+      if(!response.ok)return res.status(502).json({message:'Email provider rejected the notification'});
+      deliveryStatus='Sent';
+    }else if(channel==='SMS'){
+      const phone=String(req.body.phone||'').trim();
+      if(!phone)return res.status(400).json({message:'Enter the recipient phone number for SMS'});
+      if(!process.env.TWILIO_ACCOUNT_SID||!process.env.TWILIO_AUTH_TOKEN||!process.env.TWILIO_FROM_NUMBER)return res.status(503).json({message:'SMS delivery is not configured. Add the Twilio environment settings.'});
+      const params=new URLSearchParams({To:phone,From:process.env.TWILIO_FROM_NUMBER,Body:title+': '+message});
+      const credentials=Buffer.from(process.env.TWILIO_ACCOUNT_SID+':'+process.env.TWILIO_AUTH_TOKEN).toString('base64');
+      const response=await fetch('https://api.twilio.com/2010-04-01/Accounts/'+process.env.TWILIO_ACCOUNT_SID+'/Messages.json',{method:'POST',headers:{'Authorization':'Basic '+credentials,'Content-Type':'application/x-www-form-urlencoded'},body:params});
+      if(!response.ok)return res.status(502).json({message:'SMS provider rejected the notification'});
+      deliveryStatus='Sent';
+    }
     const id = uid();
     db.prepare('INSERT INTO notifications(id,companyId,userId,title,message,channel,status,createdAt) VALUES(?,?,?,?,?,?,?,?)')
-      .run(id, req.user.companyId, userId, title, message, 'In-app', 'Unread', now());
+      .run(id, req.user.companyId, userId, title, message, channel, deliveryStatus, now());
     res.status(201).json(rowWithId(db.prepare('SELECT * FROM notifications WHERE id=?').get(id)));
   } catch (error) { next(error); }
 });
