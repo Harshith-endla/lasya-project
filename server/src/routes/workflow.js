@@ -32,13 +32,13 @@ function companyRecord(table, id, companyId) {
 function isSuper(req) { return req.user.role === 'SUPER_ADMIN'; }
 function validateQuestions(value){
  if(value===undefined)return null;
- if(!Array.isArray(value))throw new Error('Questions must be a JSON array');
- if(value.length>100)throw new Error('An assessment can contain at most 100 questions');
+ if(!Array.isArray(value))throw Object.assign(new Error('Questions must be a JSON array'),{status:400});
+ if(value.length>100)throw Object.assign(new Error('An assessment can contain at most 100 questions'),{status:400});
  return JSON.stringify(value.map((q,index)=>{
-  if(!q||typeof q.prompt!=='string'||!q.prompt.trim())throw new Error('Question '+(index+1)+' needs a prompt');
-  if(!Array.isArray(q.options)||q.options.length<2||q.options.length>8)throw new Error('Question '+(index+1)+' must have 2 to 8 options');
+  if(!q||typeof q.prompt!=='string'||!q.prompt.trim())throw Object.assign(new Error('Question '+(index+1)+' needs a prompt'),{status:400});
+  if(!Array.isArray(q.options)||q.options.length<2||q.options.length>8)throw Object.assign(new Error('Question '+(index+1)+' must have 2 to 8 options'),{status:400});
   const answer=Number(q.answer);
-  if(!Number.isInteger(answer)||answer<0||answer>=q.options.length)throw new Error('Question '+(index+1)+' has an invalid correct option index');
+  if(!Number.isInteger(answer)||answer<0||answer>=q.options.length)throw Object.assign(new Error('Question '+(index+1)+' has an invalid correct option index'),{status:400});
   return {prompt:q.prompt.trim(),options:q.options.map(option=>String(option).slice(0,500)),answer};
  }));
 }
