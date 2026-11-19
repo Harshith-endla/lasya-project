@@ -56,25 +56,20 @@ router.get('/:id/resume',requirePermission('resumes:read'),(req,res,next)=>{
 
 function expressPdfBody(){
  return (req,res,next)=>{
-  const parser=(awaitlessRawParser);
-  parser(req,res,next);
+  if(!req.is('application/pdf'))return res.status(415).json({message:'Content-Type must be application/pdf'});
+  const chunks=[];let size=0;let tooLarge=false;
+  req.on('data',chunk=>{
+   if(tooLarge)return;
+   size+=chunk.length;
+   if(size>5*1024*1024){tooLarge=true;chunks.length=0;return;}
+   chunks.push(chunk);
+  });
+  req.on('end',()=>{
+   if(tooLarge)return res.status(413).json({message:'Resume file must be 5 MB or smaller'});
+   req.body=Buffer.concat(chunks);next();
+  });
+  req.on('error',next);
  };
-}
-function awaitlessRawParser(req,res,next){
- const chunks=[];let size=0;
- if(!req.is('application/pdf'))return res.status(415).json({message:'Content-Type must be application/pdf'});
- let tooLarge=false;
- req.on('data',chunk=>{
-  if(tooLarge)return;
-  size+=chunk.length;
-  if(size>5*1024*1024){tooLarge=true;chunks.length=0;return;}
-  chunks.push(chunk);
- });
- req.on('end',()=>{
-  if(tooLarge)return res.status(413).json({message:'Resume file must be 5 MB or smaller'});
-  req.body=Buffer.concat(chunks);next();
- });
- req.on('error',next);
 }
 
 export default router;
