@@ -9,6 +9,7 @@ import { db, uid, now, rowWithId } from '../config/db.js';
 const router=Router();
 function candidateProtect(req,res,next){try{const token=req.headers.authorization?.startsWith('Bearer ')?req.headers.authorization.slice(7):null;if(!token)return res.status(401).json({message:'Candidate sign-in required'});const payload=jwt.verify(token,process.env.JWT_SECRET);if(!payload.candidateId)return res.status(401).json({message:'Invalid candidate session'});const candidate=db.prepare('SELECT c.id,c.name,c.email,c.phone,c.experience,c.skills,c.companyId,c.stage,c.job,c.createdAt,j.title AS jobTitle FROM candidates c LEFT JOIN jobs j ON j.id=c.job WHERE c.id=?').get(payload.candidateId);if(!candidate)return res.status(401).json({message:'Candidate account unavailable'});req.candidate=candidate;next();}catch{return res.status(401).json({message:'Candidate session expired. Please sign in again.'});}}
 const applyLimit=rateLimit({windowMs:60*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many applications from this connection. Please try again later.'}});
+const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many sign-in attempts. Try again later.'}});
 
 router.get('/jobs',(req,res,next)=>{
  try{
@@ -64,7 +65,7 @@ router.post('/apply/:id/resume',candidateProtect,publicPdf,(req,res,next)=>{
 });
 
 
-router.post('/login',async(req,res,next)=>{
+router.post('/login',candidateLoginLimit,async(req,res,next)=>{
  try{
   const email=String(req.body?.email||'').trim().toLowerCase(),password=String(req.body?.password||'');
   const candidate=db.prepare('SELECT id,name,email,passwordHash FROM candidates WHERE email=? AND passwordHash<>? ORDER BY createdAt DESC').get(email,'');
