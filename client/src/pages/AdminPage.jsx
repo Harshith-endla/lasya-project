@@ -108,11 +108,11 @@ export default function AdminPage(){
       </section>
       <section className="panel">
         <div className="panel-heading"><div><h3><Network size={17} style={{verticalAlign:"middle",marginRight:7}}/>Departments</h3><p className="muted">Organize the company into teams.</p></div></div>
-        <form onSubmit={createDepartment} className="modal-fields" style={{gridTemplateColumns:"1fr"}}>
+        {user.role!=="HR_MANAGER"&&<form onSubmit={createDepartment} className="modal-fields" style={{gridTemplateColumns:"1fr"}}>
           <div className="field"><label>Department name *</label><input required value={departmentForm.name} onChange={e=>setDepartmentForm({...departmentForm,name:e.target.value})} placeholder="Engineering"/></div>
           <div className="field"><label>Description</label><textarea rows="3" value={departmentForm.description} onChange={e=>setDepartmentForm({...departmentForm,description:e.target.value})} placeholder="Department responsibilities"/></div>
           <div className="modal-actions"><button className="primary-btn" disabled={busy||!companyId}><Plus size={15}/> Add department</button></div>
-        </form>
+        </form>}
         <div style={{display:"grid",gap:9,marginTop:17}}>{departments.map(d=><div key={d._id} style={{border:"1px solid var(--line)",borderRadius:9,padding:12}}><b style={{fontSize:12}}>{d.name}</b><p className="muted tiny" style={{margin:"5px 0 0"}}>{d.description||"No description added"}</p></div>)}{!departments.length&&<div className="empty-state compact">No departments created yet.</div>}</div>
       </section>
     </div>
