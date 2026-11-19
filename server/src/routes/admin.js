@@ -74,6 +74,30 @@ router.post('/users', requirePermission('users:create'), async (req,res,next) =>
   } catch (error) { next(error); }
 });
 
+router.patch('/users/:id', requirePermission('users:update'), (req,res,next) => {
+  try {
+    const current = req.user.role === 'SUPER_ADMIN'
+      ? db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id)
+      : db.prepare('SELECT * FROM users WHERE id=? AND companyId=?').get(req.params.id, req.user.companyId);
+    if (!current) return res.status(404).json({message:'User account not found'});
+    if (current.role === 'SUPER_ADMIN' && req.user.role !== 'SUPER_ADMIN')
+      return res.status(403).json({message:'Only Super Admin can modify a Super Admin account'});
+    const body = req.body || {};
+    const role = clean(body.role || current.role).toUpperCase();
+    if (!allowedRoles.has(role)) return res.status(400).json({message:'Select a valid role'});
+    if (role !== current.role && !roleCreationPolicy[req.user.role]?.has(role))
+      return res.status(403).json({message:'You cannot assign this role'});
+    const name = clean(body.name ?? current.name);
+    if (!name) return res.status(400).json({message:'Name is required'});
+    const active = body.active === undefined ? current.active : (body.active ? 1 : 0);
+    db.prepare('UPDATE users SET name=?,role=?,department=?,title=?,active=?,updatedAt=? WHERE id=? AND companyId=?')
+      .run(name, role, clean(body.department ?? current.department), clean(body.title ?? current.title),
+        active, now(), req.params.id, current.companyId);
+    const updated = db.prepare('SELECT id,name,email,role,department,title,company,companyId,active,createdAt,updatedAt FROM users WHERE id=?').get(req.params.id);
+    res.json({user:rowWithId(updated),message:'User account updated'});
+  } catch (error) { next(error); }
+});
+
 router.get('/departments', requirePermission('departments:read'), (req,res) => {
   const companyId = companyFor(req);
   if (!companyId) return res.status(400).json({message:'A company must be selected'});
