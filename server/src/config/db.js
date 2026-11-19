@@ -44,7 +44,7 @@ export function connectDB() {
       FOREIGN KEY(assignedRecruiter) REFERENCES users(id), FOREIGN KEY(createdBy) REFERENCES users(id)
     );
     CREATE TABLE IF NOT EXISTS candidates (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT DEFAULT '', job TEXT,
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, passwordHash TEXT DEFAULT '', phone TEXT DEFAULT '', job TEXT,
       source TEXT DEFAULT 'Website', experience REAL DEFAULT 0, skills TEXT DEFAULT '[]', resumeUrl TEXT DEFAULT '',
       stage TEXT DEFAULT 'Applied', notes TEXT DEFAULT '', owner TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL,
       FOREIGN KEY(job) REFERENCES jobs(id), FOREIGN KEY(owner) REFERENCES users(id)
@@ -91,6 +91,7 @@ export function connectDB() {
 
   // Upgrade databases created by earlier versions without deleting existing records.
   ensureColumn('users', 'companyId', 'TEXT');
+  ensureColumn('candidates', 'passwordHash', "TEXT DEFAULT ''");
   ensureColumn('jobs', 'companyId', 'TEXT');
   ensureColumn('candidates', 'companyId', 'TEXT');
   ensureColumn('employees', 'companyId', 'TEXT');
