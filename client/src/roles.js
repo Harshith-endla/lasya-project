@@ -5,6 +5,7 @@ export const roleLabels={
 };
 export const navItems=[
  {label:"Overview",path:"/",icon:"LayoutDashboard",roles:Object.keys(roleLabels)},
+ {label:"Administration",path:"/admin",icon:"ShieldCheck",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER"]},
  {label:"Job openings",path:"/jobs",icon:"BriefcaseBusiness",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","REPORTING_MANAGER","CEO"]},
  {label:"Candidates",path:"/candidates",icon:"Users",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER","CEO"]},
  {label:"Interviews",path:"/interviews",icon:"CalendarDays",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER"]},
