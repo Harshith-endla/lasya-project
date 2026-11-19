@@ -60,6 +60,26 @@ export function connectDB() {
       rating REAL, recommendation TEXT, feedback TEXT DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL,
       FOREIGN KEY(candidate) REFERENCES candidates(id), FOREIGN KEY(job) REFERENCES jobs(id)
     );
+    CREATE TABLE IF NOT EXISTS assessments (
+      id TEXT PRIMARY KEY, companyId TEXT NOT NULL, candidateId TEXT NOT NULL, title TEXT NOT NULL,
+      assessmentType TEXT DEFAULT 'Technical', dueDate TEXT DEFAULT '', score REAL, status TEXT DEFAULT 'Pending',
+      createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS offers (
+      id TEXT PRIMARY KEY, companyId TEXT NOT NULL, candidateId TEXT NOT NULL, jobTitle TEXT DEFAULT '',
+      salary REAL DEFAULT 0, joiningDate TEXT DEFAULT '', status TEXT DEFAULT 'Draft',
+      createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS onboarding_tasks (
+      id TEXT PRIMARY KEY, companyId TEXT NOT NULL, employeeId TEXT NOT NULL, title TEXT NOT NULL,
+      dueDate TEXT DEFAULT '', status TEXT DEFAULT 'Pending', notes TEXT DEFAULT '',
+      createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY, companyId TEXT NOT NULL, userId TEXT, title TEXT NOT NULL,
+      message TEXT NOT NULL, channel TEXT DEFAULT 'In-app', status TEXT DEFAULT 'Unread',
+      createdAt TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS payroll (
       id TEXT PRIMARY KEY, employee TEXT NOT NULL, period TEXT NOT NULL, gross REAL NOT NULL,
       deductions REAL DEFAULT 0, net REAL NOT NULL, status TEXT DEFAULT 'Draft',
