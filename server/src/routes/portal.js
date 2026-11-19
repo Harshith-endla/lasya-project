@@ -13,7 +13,7 @@ const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:
 
 router.get('/jobs',(req,res,next)=>{
  try{
-  const rows=db.prepare("SELECT j.id,j.title,j.department,j.location,j.employmentType,j.description,j.requirements,j.createdAt,c.name AS companyName FROM jobs j LEFT JOIN companies c ON c.id=j.companyId WHERE j.status='Open' ORDER BY j.createdAt DESC").all();
+  const rows=db.prepare("SELECT j.id,j.title,j.department,j.location,j.employmentType,j.description,j.requirements,j.createdAt,c.name AS companyName FROM jobs j JOIN companies c ON c.id=j.companyId WHERE j.status='Open' AND c.status='Active' ORDER BY j.createdAt DESC").all();
   res.json(rows.map(rowWithId));
  }catch(error){next(error);}
 });
@@ -31,7 +31,7 @@ router.post('/apply',applyLimit,(req,res,next)=>{
   if(!name||!email||!jobId||password.length<8)return res.status(400).json({message:'Name, email, job and a password of at least 8 characters are required'});
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({message:'Enter a valid email address'});
   if(!Number.isFinite(experience)||experience<0||experience>60)return res.status(400).json({message:'Enter a valid experience value'});
-  const job=db.prepare("SELECT id,companyId,assignedRecruiter FROM jobs WHERE id=? AND status='Open'").get(jobId);
+  const job=db.prepare("SELECT j.id,j.companyId,j.assignedRecruiter FROM jobs j JOIN companies c ON c.id=j.companyId WHERE j.id=? AND j.status='Open' AND c.status='Active'").get(jobId);
   if(!job)return res.status(404).json({message:'This job is no longer accepting applications'});
   if(db.prepare('SELECT id FROM candidates WHERE email=? AND job=? AND companyId=?').get(email,jobId,job.companyId))
    return res.status(409).json({message:'An application with this email already exists for this job'});
