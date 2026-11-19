@@ -25,7 +25,7 @@ export const ROLE_PERMISSIONS = {
     "assessments:read", "assessments:create", "assessments:update",
     "offers:read", "offers:create", "offers:update",
     "onboarding:read", "onboarding:create", "onboarding:update",
-    "notifications:read", "reports:read", "employees:read", "employees:create", "employees:update",
+    "notifications:read", "notifications:create", "reports:read", "employees:read", "employees:create", "employees:update",
     "payroll:read"
   ],
   RECRUITER: [
