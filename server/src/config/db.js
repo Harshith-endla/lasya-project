@@ -63,16 +63,17 @@ export function connectDB() {
     CREATE TABLE IF NOT EXISTS assessments (
       id TEXT PRIMARY KEY, companyId TEXT NOT NULL, candidateId TEXT NOT NULL, title TEXT NOT NULL,
       assessmentType TEXT DEFAULT 'Technical', dueDate TEXT DEFAULT '', score REAL, status TEXT DEFAULT 'Pending',
+      instructions TEXT DEFAULT '', questions TEXT DEFAULT '[]', submission TEXT DEFAULT '', submittedAt TEXT DEFAULT '', maxScore REAL DEFAULT 100,
       createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS offers (
       id TEXT PRIMARY KEY, companyId TEXT NOT NULL, candidateId TEXT NOT NULL, jobTitle TEXT DEFAULT '',
-      salary REAL DEFAULT 0, joiningDate TEXT DEFAULT '', status TEXT DEFAULT 'Draft',
+      salary REAL DEFAULT 0, joiningDate TEXT DEFAULT '', status TEXT DEFAULT 'Draft', letterText TEXT DEFAULT '',
       createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS onboarding_tasks (
       id TEXT PRIMARY KEY, companyId TEXT NOT NULL, employeeId TEXT NOT NULL, title TEXT NOT NULL,
-      dueDate TEXT DEFAULT '', status TEXT DEFAULT 'Pending', notes TEXT DEFAULT '',
+      dueDate TEXT DEFAULT '', status TEXT DEFAULT 'Pending', notes TEXT DEFAULT '', documentName TEXT DEFAULT '', documentPath TEXT DEFAULT '',
       createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS notifications (
@@ -95,6 +96,15 @@ export function connectDB() {
   ensureColumn('employees', 'companyId', 'TEXT');
   ensureColumn('interviews', 'companyId', 'TEXT');
   ensureColumn('payroll', 'companyId', 'TEXT');
+  ensureColumn('assessments', 'instructions', "TEXT DEFAULT ''");
+  ensureColumn('assessments', 'questions', "TEXT DEFAULT '[]'");
+  ensureColumn('assessments', 'submission', "TEXT DEFAULT ''");
+  ensureColumn('assessments', 'submittedAt', "TEXT DEFAULT ''");
+  ensureColumn('assessments', 'maxScore', 'REAL DEFAULT 100');
+  ensureColumn('offers', 'letterText', "TEXT DEFAULT ''");
+  ensureColumn('onboarding_tasks', 'documentName', "TEXT DEFAULT ''");
+  ensureColumn('onboarding_tasks', 'documentPath', "TEXT DEFAULT ''");
+
 
   const timestamp = now();
   let defaultCompany = db.prepare('SELECT id FROM companies WHERE slug = ?').get('demo-company');
