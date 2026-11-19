@@ -30,6 +30,18 @@ function companyRecord(table, id, companyId) {
   return db.prepare(`SELECT * FROM ${table} WHERE id=? AND companyId=?`).get(id, companyId);
 }
 function isSuper(req) { return req.user.role === 'SUPER_ADMIN'; }
+function validateQuestions(value){
+ if(value===undefined)return null;
+ if(!Array.isArray(value))throw new Error('Questions must be a JSON array');
+ if(value.length>100)throw new Error('An assessment can contain at most 100 questions');
+ return JSON.stringify(value.map((q,index)=>{
+  if(!q||typeof q.prompt!=='string'||!q.prompt.trim())throw new Error('Question '+(index+1)+' needs a prompt');
+  if(!Array.isArray(q.options)||q.options.length<2||q.options.length>8)throw new Error('Question '+(index+1)+' must have 2 to 8 options');
+  const answer=Number(q.answer);
+  if(!Number.isInteger(answer)||answer<0||answer>=q.options.length)throw new Error('Question '+(index+1)+' has an invalid correct option index');
+  return {prompt:q.prompt.trim(),options:q.options.map(option=>String(option).slice(0,500)),answer};
+ }));
+}
 
 for (const [key, cfg] of Object.entries(configs)) {
   router.get('/' + key, (req, res, next) => {
@@ -63,7 +75,9 @@ for (const [key, cfg] of Object.entries(configs)) {
           !companyRecord('employees', body.employeeId, companyId))
         return res.status(400).json({ message: 'Employee must belong to this company' });
       const id = uid(), timestamp = now();
-      const values = cfg.fields.map(field => { const value = body[field] ?? cfg.defaults[field] ?? null; return field === 'questions' && Array.isArray(value) ? JSON.stringify(value) : value; });
+      if(key==='assessments'&&body.maxScore!==undefined&&(!Number.isFinite(Number(body.maxScore))||Number(body.maxScore)<=0||Number(body.maxScore)>10000))return res.status(400).json({message:'Maximum score must be between 1 and 10,000'});
+      const normalizedQuestions=key==='assessments'?validateQuestions(body.questions):null;
+      const values = cfg.fields.map(field => { const value = body[field] ?? cfg.defaults[field] ?? null; return field === 'questions' ? (normalizedQuestions ?? (Array.isArray(value)?JSON.stringify(value):value)) : value; });
       db.prepare('INSERT INTO ' + cfg.table + '(id,companyId,' + cfg.fields.join(',') +
         ',createdAt,updatedAt) VALUES(' + Array(cfg.fields.length + 4).fill('?').join(',') + ')')
         .run(id, companyId, ...values, timestamp, timestamp);
@@ -87,6 +101,8 @@ for (const [key, cfg] of Object.entries(configs)) {
         }
         const allowed = selfEmployee ? ['status', 'notes'] : cfg.fields;
         const updates = allowed.filter(field => req.body?.[field] !== undefined);
+        if(key==='assessments'&&req.body?.maxScore!==undefined&&(!Number.isFinite(Number(req.body.maxScore))||Number(req.body.maxScore)<=0||Number(req.body.maxScore)>10000))return res.status(400).json({message:'Maximum score must be between 1 and 10,000'});
+        const normalizedQuestions=key==='assessments'?validateQuestions(req.body?.questions):null;
         if (!updates.length) return res.json(rowWithId(current));
         if (req.body.candidateId && cfg.fields.includes('candidateId') &&
             !companyRecord('candidates', req.body.candidateId, current.companyId))
@@ -96,7 +112,7 @@ for (const [key, cfg] of Object.entries(configs)) {
           return res.status(400).json({ message: 'Employee must belong to this company' });
         db.prepare('UPDATE ' + cfg.table + ' SET ' + updates.map(field => field + '=?').join(',') +
           ',updatedAt=? WHERE id=? AND companyId=?')
-          .run(...updates.map(field => field === 'questions' && Array.isArray(req.body[field]) ? JSON.stringify(req.body[field]) : req.body[field]), now(), req.params.id, current.companyId);
+          .run(...updates.map(field => field === 'questions' ? normalizedQuestions : req.body[field]), now(), req.params.id, current.companyId);
         res.json(rowWithId(db.prepare('SELECT * FROM ' + cfg.table + ' WHERE id=?').get(req.params.id)));
       } catch (error) { next(error); }
     });
