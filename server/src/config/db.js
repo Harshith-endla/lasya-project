@@ -97,6 +97,8 @@ export function connectDB() {
   db.prepare("UPDATE payroll SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
     .run(defaultCompany.id);
 
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map(column => column.name);
+  if (!userColumns.includes('companyId')) db.exec('ALTER TABLE users ADD COLUMN companyId TEXT');
   console.log(`SQLite database ready: ${path.join(dataDir, 'recruitment.sqlite')}`);
 }
 
