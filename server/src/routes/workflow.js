@@ -121,9 +121,9 @@ function canAccessOwnTask(task,req){
  if(req.user.role!=='EMPLOYEE')return true;
  return !!db.prepare('SELECT id FROM employees WHERE id=? AND email=? AND companyId=?').get(task.employeeId,req.user.email,req.user.companyId);
 }
-router.post('/onboarding/:id/document',pdfUpload,(req,res,next)=>{
+router.post('/onboarding/:id/document',(req,res,next)=>{
  const permission=req.user.role==='EMPLOYEE'?'onboarding:update:self':'onboarding:update';
- requirePermission(permission)(req,res,()=>{
+ requirePermission(permission)(req,res,()=>pdfUpload(req,res,()=>{
   try{
    const task=onboardingRecord(req.params.id,req);
    if(!task)return res.status(404).json({message:'Onboarding task not found'});
@@ -134,7 +134,7 @@ router.post('/onboarding/:id/document',pdfUpload,(req,res,next)=>{
     .run('onboarding-document.pdf',filename,now(),task.id,task.companyId);
    res.status(201).json({message:'Document uploaded',documentName:'onboarding-document.pdf'});
   }catch(error){next(error);}
- });
+ }));
 });
 router.get('/onboarding/:id/document',(req,res,next)=>{
  const permitted=hasPermission(req.user.role,'onboarding:read')||hasPermission(req.user.role,'onboarding:read:self');
@@ -191,7 +191,7 @@ router.get('/notifications', (req, res, next) => {
     const rows = isSuper(req)
       ? db.prepare('SELECT * FROM notifications ORDER BY createdAt DESC LIMIT 100').all()
       : req.user.role === 'EMPLOYEE'
-        ? db.prepare('SELECT * FROM notifications WHERE companyId=? AND userId=? ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id)
+        ? db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id)
         : db.prepare('SELECT * FROM notifications WHERE companyId=? AND (userId IS NULL OR userId=?) ORDER BY createdAt DESC LIMIT 100').all(req.user.companyId, req.user._id);
     res.json(rows.map(rowWithId));
   } catch (error) { next(error); }
@@ -211,6 +211,17 @@ router.post('/notifications', requirePermission('notifications:create'), (req, r
       .run(id, req.user.companyId, userId, title, message, 'In-app', 'Unread', now());
     res.status(201).json(rowWithId(db.prepare('SELECT * FROM notifications WHERE id=?').get(id)));
   } catch (error) { next(error); }
+});
+
+router.patch('/notifications/:id/read',(req,res,next)=>{
+ try{
+  const notification=isSuper(req)
+   ? db.prepare('SELECT * FROM notifications WHERE id=?').get(req.params.id)
+   : db.prepare('SELECT * FROM notifications WHERE id=? AND companyId=? AND (userId IS NULL OR userId=?)').get(req.params.id,req.user.companyId,req.user._id);
+  if(!notification)return res.status(404).json({message:'Notification not found'});
+  db.prepare("UPDATE notifications SET status='Read' WHERE id=? AND companyId=?").run(notification.id,notification.companyId);
+  res.json({message:'Notification marked as read'});
+ }catch(error){next(error);}
 });
 
 router.post('/resume-screening', requirePermission('resumes:read'), (req, res) => {
