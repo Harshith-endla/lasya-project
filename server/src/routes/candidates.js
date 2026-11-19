@@ -14,7 +14,7 @@ router.delete('/:id',requirePermission('candidates:delete'),(req,res)=>{const r=
 const resumeDir = path.resolve(process.env.DATA_DIR || 'data', 'resumes');
 fs.mkdirSync(resumeDir, { recursive: true });
 
-router.post('/:id/resume', expressPdfBody(), (req,res,next)=>{
+router.post('/:id/resume', requirePermission('resumes:read'), expressPdfBody(), (req,res,next)=>{
  try {
   const candidate=findScoped(req.params.id,req);
   if(!candidate)return res.status(404).json({message:'Candidate not found'});
@@ -33,7 +33,7 @@ router.post('/:id/resume', expressPdfBody(), (req,res,next)=>{
  } catch(error){next(error);}
 });
 
-router.get('/:id/resume',(req,res,next)=>{
+router.get('/:id/resume',requirePermission('resumes:read'),(req,res,next)=>{
  try {
   const candidate=findScoped(req.params.id,req);
   if(!candidate)return res.status(404).json({message:'Candidate not found'});
