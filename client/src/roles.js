@@ -11,6 +11,7 @@ export const navItems=[
  {label:"Interviews",path:"/interviews",icon:"CalendarDays",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","REPORTING_MANAGER"]},
  {label:"Employees",path:"/employees",icon:"ContactRound",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","REPORTING_MANAGER","EMPLOYEE","CEO"]},
  {label:"Payroll",path:"/payroll",icon:"Wallet",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","FINANCE_PAYROLL","EMPLOYEE"]},
+ {label:"Talent operations",path:"/talent-operations",icon:"Workflow",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","RECRUITER","INTERVIEW_PANEL","EMPLOYEE"]},
  {label:"Reports",path:"/reports",icon:"ChartNoAxesCombined",roles:["SUPER_ADMIN","COMPANY_ADMIN","HR_MANAGER","REPORTING_MANAGER","CEO"]}
 ];
 export const roleDescriptions={
