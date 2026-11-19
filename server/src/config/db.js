@@ -9,13 +9,32 @@ export const db = new Database(path.join(dataDir, 'recruitment.sqlite'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some(item => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 export function connectDB() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS companies (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+      industry TEXT DEFAULT '', website TEXT DEFAULT '', email TEXT DEFAULT '',
+      phone TEXT DEFAULT '', address TEXT DEFAULT '', status TEXT DEFAULT 'Active',
+      createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS departments (
+      id TEXT PRIMARY KEY, companyId TEXT NOT NULL, name TEXT NOT NULL,
+      description TEXT DEFAULT '', headUserId TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL,
+      UNIQUE(companyId, name), FOREIGN KEY(companyId) REFERENCES companies(id),
+      FOREIGN KEY(headUserId) REFERENCES users(id)
+    );
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL, role TEXT NOT NULL, department TEXT DEFAULT 'People',
-      title TEXT DEFAULT '', company TEXT DEFAULT 'Demo Company', active INTEGER DEFAULT 1,
-      createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+      title TEXT DEFAULT '', company TEXT DEFAULT 'Demo Company', companyId TEXT,
+      active INTEGER DEFAULT 1, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, department TEXT NOT NULL, location TEXT DEFAULT 'Hybrid',
@@ -48,6 +67,36 @@ export function connectDB() {
       FOREIGN KEY(employee) REFERENCES employees(id)
     );
   `);
+
+  // Upgrade databases created by earlier versions without deleting existing records.
+  ensureColumn('users', 'companyId', 'TEXT');
+  ensureColumn('jobs', 'companyId', 'TEXT');
+  ensureColumn('candidates', 'companyId', 'TEXT');
+  ensureColumn('employees', 'companyId', 'TEXT');
+  ensureColumn('interviews', 'companyId', 'TEXT');
+  ensureColumn('payroll', 'companyId', 'TEXT');
+
+  const timestamp = now();
+  let defaultCompany = db.prepare('SELECT id FROM companies WHERE slug = ?').get('demo-company');
+  if (!defaultCompany) {
+    const id = uid();
+    db.prepare('INSERT INTO companies(id,name,slug,createdAt,updatedAt) VALUES(?,?,?,?,?)')
+      .run(id, 'Demo Company', 'demo-company', timestamp, timestamp);
+    defaultCompany = { id };
+  }
+  db.prepare("UPDATE users SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+  db.prepare("UPDATE jobs SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+  db.prepare("UPDATE candidates SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+  db.prepare("UPDATE employees SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+  db.prepare("UPDATE interviews SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+  db.prepare("UPDATE payroll SET companyId = ? WHERE companyId IS NULL OR companyId = ''")
+    .run(defaultCompany.id);
+
   console.log(`SQLite database ready: ${path.join(dataDir, 'recruitment.sqlite')}`);
 }
 
@@ -55,7 +104,7 @@ export const now = () => new Date().toISOString();
 export const uid = () => randomUUID();
 export function rowWithId(row) {
   if (!row) return null;
-  const { id, ...rest } = row;
+  const { id, password, ...rest } = row;
   return { _id: id, ...rest };
 }
 export function rowsWithId(rows) { return rows.map(rowWithId); }
