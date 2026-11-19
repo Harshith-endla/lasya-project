@@ -2,14 +2,12 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { inflateSync } from 'node:zlib';
-import rateLimit from 'express-rate-limit';
 import { db, uid, now, rowWithId } from '../config/db.js';
 import { protect, requirePermission } from '../middleware/auth.js';
 import { hasPermission } from '../config/permissions.js';
 
 const router = Router();
 router.use(protect);
-const candidateLoginLimit=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{message:'Too many sign-in attempts. Try again later.'}});
 
 const configs = {
   assessments: {
