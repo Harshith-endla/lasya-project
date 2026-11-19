@@ -255,6 +255,7 @@ router.patch('/notifications/:id/read',(req,res,next)=>{
    ? db.prepare('SELECT * FROM notifications WHERE id=?').get(req.params.id)
    : db.prepare('SELECT * FROM notifications WHERE id=? AND companyId=? AND (userId IS NULL OR userId=?)').get(req.params.id,req.user.companyId,req.user._id);
   if(!notification)return res.status(404).json({message:'Notification not found'});
+  if(!isSuper(req)&&notification.userId!==req.user._id)return res.status(403).json({message:'Broadcast notifications cannot be marked read individually yet'});
   db.prepare("UPDATE notifications SET status='Read' WHERE id=? AND companyId=?").run(notification.id,notification.companyId);
   res.json({message:'Notification marked as read'});
  }catch(error){next(error);}
