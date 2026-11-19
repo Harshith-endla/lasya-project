@@ -116,7 +116,7 @@ router.post('/assessments/:id/grade', requirePermission('assessments:update'), (
    return res.status(400).json({message:'Provide an answer for each question'});
   const valid=questions.filter(q=>q.answer!==undefined&&q.answer!==null);
   if(!valid.length)return res.status(400).json({message:'Questions need answer keys before automatic scoring'});
-  const correct=valid.filter((q,i)=>String(answers[i]??'')===String(q.answer)).length;
+  const correct=questions.reduce((total,q,index)=>total+(q.answer!==undefined&&q.answer!==null&&String(answers[index]??'')===String(q.answer)?1:0),0);
   const score=Math.round((correct/valid.length)*Number(assessment.maxScore||100)*100)/100;
   db.prepare("UPDATE assessments SET score=?,status='Completed',submission=?,submittedAt=?,updatedAt=? WHERE id=? AND companyId=?")
    .run(score,JSON.stringify(answers),now(),now(),assessment.id,assessment.companyId);
