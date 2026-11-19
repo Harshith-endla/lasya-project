@@ -14,7 +14,7 @@ const configs = {
   },
   offers: {
     table: 'offers', permission: 'offers',
-    fields: ['candidateId', 'jobTitle', 'salary', 'joiningDate', 'status'],
+    fields: ['candidateId', 'jobTitle', 'salary', 'joiningDate', 'status', 'letterText'],
     required: ['candidateId'], defaults: { status: 'Draft' }
   },
   onboarding: {
