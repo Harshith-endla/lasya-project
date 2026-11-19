@@ -18,7 +18,7 @@ router.get('/jobs',(req,res,next)=>{
  }catch(error){next(error);}
 });
 
-router.post('/apply',applyLimit,(req,res,next)=>{
+router.post('/apply',applyLimit,async(req,res,next)=>{
  try{
   const body=req.body||{};
   const name=String(body.name||'').trim();
@@ -68,7 +68,7 @@ router.post('/apply/:id/resume',candidateProtect,publicPdf,(req,res,next)=>{
 router.post('/login',candidateLoginLimit,async(req,res,next)=>{
  try{
   const email=String(req.body?.email||'').trim().toLowerCase(),password=String(req.body?.password||'');
-  const candidate=db.prepare('SELECT ca.id,ca.name,ca.email,ca.passwordHash FROM candidates ca JOIN companies co ON co.id=ca.companyId WHERE ca.email=? AND ca.passwordHash<>? AND co.status='Active' ORDER BY ca.createdAt DESC').get(email,'');
+  const candidate=db.prepare("SELECT ca.id,ca.name,ca.email,ca.passwordHash FROM candidates ca JOIN companies co ON co.id=ca.companyId WHERE ca.email=? AND ca.passwordHash<>? AND co.status='Active' ORDER BY ca.createdAt DESC").get(email,'');
   if(!candidate||!(await bcrypt.compare(password,candidate.passwordHash)))return res.status(401).json({message:'Invalid candidate email or password'});
   const token=jwt.sign({candidateId:candidate.id},process.env.JWT_SECRET,{expiresIn:'7d'});
   res.json({token,candidate:{_id:candidate.id,name:candidate.name,email:candidate.email}});
