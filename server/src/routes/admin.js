@@ -90,6 +90,11 @@ router.patch('/users/:id', requirePermission('users:update'), (req,res,next) => 
     const name = clean(body.name ?? current.name);
     if (!name) return res.status(400).json({message:'Name is required'});
     const active = body.active === undefined ? current.active : (body.active ? 1 : 0);
+    if (req.params.id === req.user._id && active === 0) return res.status(400).json({message:'You cannot deactivate your own account'});
+    if (current.role === 'SUPER_ADMIN' && active === 0) {
+      const activeAdmins = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='SUPER_ADMIN' AND active=1").get().n;
+      if (activeAdmins <= 1) return res.status(400).json({message:'At least one active Super Admin account must remain'});
+    }
     db.prepare('UPDATE users SET name=?,role=?,department=?,title=?,active=?,updatedAt=? WHERE id=? AND companyId=?')
       .run(name, role, clean(body.department ?? current.department), clean(body.title ?? current.title),
         active, now(), req.params.id, current.companyId);
