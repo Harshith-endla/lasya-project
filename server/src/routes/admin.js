@@ -42,6 +42,21 @@ router.post('/companies', (req,res,next) => {
   }
 });
 
+router.patch('/companies/:id',(req,res,next)=>{
+ if(req.user.role!=='SUPER_ADMIN')return res.status(403).json({message:'Only Super Admin can update companies'});
+ try{
+  const current=db.prepare('SELECT * FROM companies WHERE id=?').get(req.params.id);
+  if(!current)return res.status(404).json({message:'Company not found'});
+  const body=req.body||{},allowed=['name','industry','website','email','phone','address','status'];
+  const values=allowed.map(field=>body[field]===undefined?current[field]:clean(body[field]));
+  if(!values[0])return res.status(400).json({message:'Company name is required'});
+  if(!['Active','Inactive'].includes(values[6]))return res.status(400).json({message:'Company status must be Active or Inactive'});
+  db.prepare('UPDATE companies SET name=?,industry=?,website=?,email=?,phone=?,address=?,status=?,updatedAt=? WHERE id=?')
+   .run(...values,now(),req.params.id);
+  res.json({company:rowWithId(db.prepare('SELECT * FROM companies WHERE id=?').get(req.params.id)),message:'Company updated'});
+ }catch(error){next(error);}
+});
+
 router.get('/users', requirePermission('users:read'), (req,res) => {
   const companyId = companyFor(req);
   if (req.user.role !== 'SUPER_ADMIN' && !companyId) return res.status(403).json({message:'Your account is not assigned to a company'});
