@@ -1,7 +1,7 @@
 import {Router} from 'express';
 import {db} from '../config/db.js';
-import {protect,allow} from '../middleware/auth.js';
-const router=Router();router.get('/overview',protect,allow('SUPER_ADMIN','COMPANY_ADMIN','HR_MANAGER','CEO','REPORTING_MANAGER'),(req,res,next)=>{try{
+import {protect,requirePermission} from '../middleware/auth.js';
+const router=Router();router.get('/overview',protect,requirePermission('reports:read'),(req,res,next)=>{try{
  const scoped=req.user.role!=='SUPER_ADMIN',args=scoped?[req.user.companyId]:[];
  const filter=scoped?' WHERE companyId=?':'';
  const byStage=db.prepare(`SELECT stage AS _id,COUNT(*) AS count FROM candidates${filter} GROUP BY stage`).all(...args);
